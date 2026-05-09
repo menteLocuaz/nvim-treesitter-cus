@@ -1,31 +1,25 @@
 local M = {}
 
-function M.setup(...)
-  require('nvim-treesitter.config').setup(...)
+local function proxy(mod, fn)
+  return function(...)
+    return require(mod)[fn](...)
+  end
 end
 
-function M.get_available(...)
-  return require('nvim-treesitter.config').get_available(...)
-end
+M.setup = proxy('nvim-treesitter.config', 'setup')
+M.get_available = proxy('nvim-treesitter.config', 'get_available')
+M.get_installed = proxy('nvim-treesitter.config', 'get_installed')
 
-function M.get_installed(...)
-  return require('nvim-treesitter.config').get_installed(...)
-end
-
-function M.install(...)
-  return require('nvim-treesitter.install').install(...)
-end
-
-function M.uninstall(...)
-  return require('nvim-treesitter.install').uninstall(...)
-end
-
-function M.update(...)
-  return require('nvim-treesitter.install').update(...)
-end
+M.install = proxy('nvim-treesitter.install', 'install')
+M.uninstall = proxy('nvim-treesitter.install', 'uninstall')
+M.update = proxy('nvim-treesitter.install', 'update')
 
 function M.indentexpr()
-  return require('nvim-treesitter.indent').get_indent(vim.v.lnum)
+  local ok, indent = pcall(require, 'nvim-treesitter.indent')
+  if not ok then
+    return -1
+  end
+  return indent.get_indent(vim.v.lnum)
 end
 
 return M

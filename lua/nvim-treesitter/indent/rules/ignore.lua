@@ -18,7 +18,7 @@
 --   @indent.ignore returns no indent at all (KIND.STOP with no indent field),
 --   meaning "do not touch this line's indentation".
 
-local utils     = require('nvim-treesitter.indent.utils')
+local utils = require('nvim-treesitter.indent.utils')
 local constants = require('nvim-treesitter.indent.constants')
 
 local KIND = constants.KIND
@@ -54,17 +54,17 @@ local KIND = constants.KIND
 ---     returning KIND.STOP without an indent field tells the caller to leave
 ---     the line's indentation completely untouched.
 local function process(ctx)
-  local node_id    = ctx.node_id
-  local queries    = ctx.queries
-  local node       = ctx.node
-  local row        = ctx.row
+  local node_id = ctx.node_id
+  local queries = ctx.queries
+  local node = ctx.node
+  local row = ctx.row
 
-  local begin_meta  = queries[utils.CAPTURE.BEGIN][node_id]
+  local begin_meta = queries[utils.CAPTURE.BEGIN][node_id]
   local ignore_meta = queries[utils.CAPTURE.IGNORE][node_id]
 
   if not begin_meta and ignore_meta then
     local start_row = select(1, node:start())
-    local end_row   = select(1, node:end_())
+    local end_row = select(1, node:end_())
 
     -- Strictly inside: both opening and closing lines are excluded.
     -- Compare with @indent.auto which uses row <= end_row (includes closing line).

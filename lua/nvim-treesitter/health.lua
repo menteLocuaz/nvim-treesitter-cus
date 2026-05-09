@@ -1,174 +1,81 @@
+-- nvim-treesitter.health
+-- Entry point for Neovim's built-in health check system (:checkhealth nvim-treesitter).
+--
+-- When the user runs :checkhealth nvim-treesitter, Neovim automatically calls
+-- M.check() from this module. The function orchestrates a full diagnostic pass:
+--
+--   1. install_health  – Checks that the Treesitter C library and compiler are available.
+--   2. check_install_dir – Verifies the parser installation directory is writable.
+--   3. render_languages  – Reports the status of every installed language parser.
+--   4. collect / collect_query_errors – Gathers parser and query file errors.
+--   5. render_errors     – Displays all collected errors in the health report UI.
+
 local parsers = require('nvim-treesitter.parsers')
 local config = require('nvim-treesitter.config')
-local util = require('nvim-treesitter.util')
-local tsq = vim.treesitter.query
-local health = vim.health
+
+local checks = require('nvim-treesitter.health.checks')
+local report = require('nvim-treesitter.health.report')
+local constants = require('nvim-treesitter.health.constants')
+local render = require('nvim-treesitter.health.render')
 
 local M = {}
 
-local NVIM_TREESITTER_MINIMUM_ABI = 13
-local TREE_SITTER_MIN_VER = { 0, 26, 1 }
-
----@param name string
----@return table?
-local function check_exe(name)
-  if vim.fn.executable(name) == 1 then
-    local path = vim.fn.exepath(name)
-    local out = vim.trim(vim.fn.system({ name, '--version' }))
-    local version = vim.version.parse(out)
-    return { path = path, version = version, out = out }
-  end
-end
-
-local function install_health()
-  health.start('Requirements')
-
-  do -- nvim check
-    if vim.fn.has('nvim-0.12') ~= 1 then
-      health.error('Nvim-treesitter requires Neovim 0.12.0 or later.')
-    end
-
-    if vim.treesitter.language_version >= NVIM_TREESITTER_MINIMUM_ABI then
-      health.ok(
-        'Neovim was compiled with tree-sitter runtime ABI version '
-          .. vim.treesitter.language_version
-          .. ' (required >='
-          .. NVIM_TREESITTER_MINIMUM_ABI
-          .. ').'
-      )
-    else
-      health.error(
-        'Neovim was compiled with tree-sitter runtime ABI version '
-          .. vim.treesitter.language_version
-          .. '.\n'
-          .. 'nvim-treesitter expects at least ABI version '
-          .. NVIM_TREESITTER_MINIMUM_ABI
-          .. '\n'
-          .. 'Please make sure that Neovim is linked against a recent tree-sitter library when building'
-          .. ' or raise an issue at your Neovim packager. Parsers must be compatible with runtime ABI.'
-      )
-    end
-  end
-
-  do -- treesitter check
-    local ts = check_exe('tree-sitter')
-    if ts then
-      if vim.version.ge(ts.version, TREE_SITTER_MIN_VER) then
-        health.ok(string.format('tree-sitter-cli %s (%s)', ts.version, ts.path))
-      else
-        health.error(
-          string.format('tree-sitter-cli v%d.%d.%d is required', unpack(TREE_SITTER_MIN_VER))
-        )
-      end
-    else
-      health.error('tree-sitter-cli not found')
-    end
-  end
-
-  do -- curl+tar check
-    local tar = check_exe('tar')
-    if tar then
-      health.ok(string.format('tar %s (%s)', tar.version, tar.path))
-    else
-      health.error('tar not found')
-    end
-
-    local curl = check_exe('curl')
-    if curl then
-      health.ok(string.format('curl %s (%s)\n%s', curl.version, curl.path, curl.out))
-    else
-      health.error('curl not found')
-    end
-  end
-
-  health.start('OS Info')
-  local osinfo = vim.uv.os_uname() ---@type table<string,string>
-  for k, v in pairs(osinfo) do
-    health.info(k .. ': ' .. v)
-  end
-
-  local installdir = config.get_install_dir('')
-  health.start('Install directory for parsers and queries')
-  health.info(installdir)
-  if vim.uv.fs_access(installdir, 'w') then
-    health.ok('is writable.')
-  else
-    health.error('is not writable.')
-  end
-  if
-    vim.list_contains(vim.tbl_map(vim.fs.normalize, vim.api.nvim_list_runtime_paths()), installdir)
-  then
-    health.ok('is in runtimepath.')
-  else
-    health.error('is not in runtimepath.')
-  end
-end
-
-local function query_status(lang, query_group)
-  local ok, err = pcall(tsq.get, lang, query_group)
-  if not ok then
-    return 'x', err
-  elseif not err then
-    return '.'
-  else
-    return '✓'
-  end
-end
-
+--- Runs the full nvim-treesitter health check.
+--- Called automatically by Neovim when the user executes:
+---   :checkhealth nvim-treesitter
+---
+--- Steps (in order):
+---   1. checks.install_health()
+---        Verifies the Treesitter C library is loadable and that a C compiler
+---        (cc / gcc / clang / cl) is available on PATH for building parsers.
+---
+---   2. checks.check_install_dir()
+---        Confirms the parser installation directory exists and is writable.
+---        Reports a warning if parsers would be installed to a read-only path.
+---
+---   3. render.render_languages(languages, parsers, BUNDLED_QUERIES)
+---        Iterates over all installed languages (sorted alphabetically) and
+---        reports the status of each: parser version, ABI compatibility, and
+---        which bundled query files (highlights, indents, folds, etc.) are present.
+---
+---   4. report.collect(languages, parsers)
+---        Collects parser-level errors (e.g., ABI mismatch, missing shared library)
+---        for all installed languages.
+---
+---   5. report.collect_query_errors(languages, parsers)
+---        Collects query-level errors (e.g., invalid .scm syntax, missing nodes)
+---        for all installed languages. Results are merged into the same error list.
+---
+---   6. render.render_errors(errors)
+---        Displays all collected errors as health report ERROR entries so the
+---        user can see exactly which parsers or queries need attention.
 function M.check()
-  --- @type {[1]: string, [2]: string, [3]: string}[]
-  local error_collection = {}
-  -- Installation dependency checks
-  install_health()
+  -- Step 1 & 2: environment and installation directory checks.
+  checks.install_health()
+  checks.check_install_dir()
 
-  -- Parser installation checks
-  health.start('Installed languages' .. string.rep(' ', 5) .. 'H L F I J')
+  -- Retrieve and sort the list of installed language names alphabetically
+  -- so the health report output is stable and easy to scan.
   local languages = config.get_installed()
   table.sort(languages)
-  for _, lang in ipairs(languages) do
-    local parser = parsers[lang]
-    local out = lang .. string.rep(' ', 22 - #lang)
-    if parser and parser.install_info then
-      for _, query_group in pairs(M.bundled_queries) do
-        local status, err = query_status(lang, query_group)
-        out = out .. status .. ' '
-        if err then
-          table.insert(error_collection, { lang, query_group, err })
-        end
-      end
-    end
-    if parser and parser.requires then
-      for _, p in pairs(parser.requires) do
-        if not vim.list_contains(languages, p) then
-          table.insert(error_collection, { lang, 'queries', 'dependency ' .. p .. ' missing' })
-        end
-      end
-    end
-    health.info(vim.fn.trim(out, ' ', 2))
-  end
-  health.start('  Legend: [H]ighlights, [L]ocals, [F]olds, [I]ndents, In[J]ections')
 
-  if #error_collection > 0 then
-    health.start('The following errors have been detected in query files:')
-    for _, p in ipairs(error_collection) do
-      local lang, type = p[1], p[2]
-      local lines = {}
-      table.insert(lines, lang .. '(' .. type .. '): ')
-      local files = tsq.get_files(lang, type)
-      if #files > 0 then
-        for _, file in ipairs(files) do
-          local query = util.read_file(file)
-          local _, file_err = pcall(tsq.parse, lang, query)
-          if file_err then
-            table.insert(lines, file)
-          end
-        end
-      end
-      health.error(table.concat(lines, ''))
-    end
-  end
+  -- Step 3: render per-language parser and query file status.
+  render.render_languages(languages, parsers, constants.BUNDLED_QUERIES, report.query_status)
+
+  -- Steps 4 & 5: collect parser errors and query errors, then merge them
+  -- into a single list so they can be rendered together.
+  local errors = report.collect(languages, parsers)
+  local query_errors = report.collect_query_errors(languages, parsers)
+
+  vim.list_extend(errors, query_errors)
+
+  -- Step 6: render all collected errors as health report ERROR entries.
+  render.render_errors(errors)
 end
 
-M.bundled_queries = { 'highlights', 'locals', 'folds', 'indents', 'injections' }
+-- Re-export the bundled query names so external modules (e.g., tests or
+-- other health check extensions) can reference the canonical list without
+-- importing nvim-treesitter.health.constants directly.
+M.bundled_queries = constants.BUNDLED_QUERIES
 
 return M

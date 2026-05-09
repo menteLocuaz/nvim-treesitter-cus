@@ -20,14 +20,14 @@
 -- Rules reference these constants instead of raw strings to avoid typos and
 -- to make capture name changes a single-point update.
 local CAPTURE = {
-  AUTO   = 'indent.auto',    -- Node whose indentation is inferred automatically.
-  BEGIN  = 'indent.begin',   -- Node that opens an indented block (e.g. `if`, `{`).
-  END    = 'indent.end',     -- Node that closes an indented block (e.g. `end`, `}`).
-  DEDENT = 'indent.dedent',  -- Node that reduces indent relative to its parent.
-  BRANCH = 'indent.branch',  -- Node that is a branch of a block (e.g. `else`, `elif`).
-  IGNORE = 'indent.ignore',  -- Node whose subtree should not affect indentation.
-  ALIGN  = 'indent.align',   -- Node that triggers column-alignment indentation.
-  ZERO   = 'indent.zero',    -- Node that forces indentation to column 0.
+  AUTO = 'indent.auto', -- Node whose indentation is inferred automatically.
+  BEGIN = 'indent.begin', -- Node that opens an indented block (e.g. `if`, `{`).
+  END = 'indent.end', -- Node that closes an indented block (e.g. `end`, `}`).
+  DEDENT = 'indent.dedent', -- Node that reduces indent relative to its parent.
+  BRANCH = 'indent.branch', -- Node that is a branch of a block (e.g. `else`, `elif`).
+  IGNORE = 'indent.ignore', -- Node whose subtree should not affect indentation.
+  ALIGN = 'indent.align', -- Node that triggers column-alignment indentation.
+  ZERO = 'indent.zero', -- Node that forces indentation to column 0.
 }
 
 -- Set of Treesitter language names that represent comment/documentation parsers.
@@ -37,11 +37,11 @@ local CAPTURE = {
 --
 -- Extended at runtime via register_comment_parser() for languages not listed here.
 local COMMENT_PARSERS = {
-  comment = true,   -- Generic tree-sitter-comment parser.
-  luadoc  = true,   -- LuaDoc annotations inside Lua comments.
-  javadoc = true,   -- Javadoc inside Java block comments.
-  jsdoc   = true,   -- JSDoc inside JavaScript/TypeScript comments.
-  phpdoc  = true,   -- PHPDoc inside PHP block comments.
+  comment = true, -- Generic tree-sitter-comment parser.
+  luadoc = true, -- LuaDoc annotations inside Lua comments.
+  javadoc = true, -- Javadoc inside Java block comments.
+  jsdoc = true, -- JSDoc inside JavaScript/TypeScript comments.
+  phpdoc = true, -- PHPDoc inside PHP block comments.
 }
 
 --- Registers an additional language as a comment parser.
@@ -103,7 +103,7 @@ end
 --- @return string     The escaped string safe for use in a Lua pattern.
 ---
 --- Example:
----   escape_pattern('foo.bar()')  -->  'foo%.bar%(%)' 
+---   escape_pattern('foo.bar()')  -->  'foo%.bar%(%)'
 local function escape_pattern(str)
   return (str:gsub('[%(%)%.%%%+%-%*%?%[%]%^%$]', '%%%1'))
 end
@@ -184,14 +184,14 @@ local function clear_error_cache()
 end
 
 return {
-  CAPTURE                   = CAPTURE,
-  COMMENT_PARSERS           = COMMENT_PARSERS,
-  escape_pattern            = escape_pattern,
-  is_last_in_line           = is_last_in_line,
-  find_delimiter            = find_delimiter,
+  CAPTURE = CAPTURE,
+  COMMENT_PARSERS = COMMENT_PARSERS,
+  escape_pattern = escape_pattern,
+  is_last_in_line = is_last_in_line,
+  find_delimiter = find_delimiter,
   find_direct_child_by_type = find_direct_child_by_type,
-  get_node_range            = get_node_range,
-  has_error_ancestor        = has_error_ancestor,
-  register_comment_parser   = register_comment_parser,
-  clear_error_cache         = clear_error_cache,
+  get_node_range = get_node_range,
+  has_error_ancestor = has_error_ancestor,
+  register_comment_parser = register_comment_parser,
+  clear_error_cache = clear_error_cache,
 }

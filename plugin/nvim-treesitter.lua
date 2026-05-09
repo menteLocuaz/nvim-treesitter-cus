@@ -73,3 +73,31 @@ api.nvim_create_user_command('TSLog', function()
 end, {
   desc = 'View log messages',
 })
+
+api.nvim_create_user_command('TSHealthInfo', function()
+  local checks = require('nvim-treesitter.health.checks')
+  local config = require('nvim-treesitter.config')
+
+  local info = {
+    '=== nvim-treesitter health (verbose) ===',
+    'Minimum ABI: ' .. checks.NVIM_TREESITTER_MINIMUM_ABI,
+    'Tree-sitter min version: ' .. vim.inspect(checks.TREE_SITTER_MIN_VER),
+    'Install dir: ' .. config.get_install_dir(''),
+    'Configured languages: ' .. #config.get_available(),
+    'Installed languages: ' .. #config.get_installed(),
+  }
+
+  local ts = checks.check_exe('tree-sitter')
+  if ts then
+    table.insert(info, 'tree-sitter-cli: ' .. (ts.version and tostring(ts.version) or 'unknown'))
+  end
+
+  vim.list_extend(info, { '', '=== Installed parsers ===' })
+  for _, lang in ipairs(config.get_installed()) do
+    table.insert(info, '  ' .. lang)
+  end
+
+  api.nvim_echo({ { table.concat(info, '\n'), 'Normal' } }, false, {})
+end, {
+  desc = 'Display detailed health info',
+})
