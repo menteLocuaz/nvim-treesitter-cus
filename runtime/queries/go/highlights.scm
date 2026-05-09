@@ -7,9 +7,12 @@
 (type_spec
   name: (type_identifier) @type.definition)
 
-(field_identifier) @property
+(field_identifier) @variable.member
 
 (identifier) @variable
+
+((identifier) @variable.builtin
+  (#eq? @variable.builtin "_"))
 
 (package_identifier) @module
 
@@ -19,6 +22,9 @@
 (variadic_parameter_declaration
   (identifier) @variable.parameter)
 
+(type_parameter_declaration
+  name: (type_identifier) @type)
+
 (label_name) @label
 
 (const_spec
@@ -26,11 +32,23 @@
 
 ; Function calls
 (call_expression
-  function: (identifier) @function.call)
+  function: [
+    (identifier) @function.call
+    (instantiation_expression
+      function: (identifier) @function.call)
+  ])
 
 (call_expression
-  function: (selector_expression
-    field: (field_identifier) @function.method.call))
+  function: [
+    (selector_expression
+      field: (field_identifier) @function.method.call)
+    (instantiation_expression
+      function: (selector_expression
+        field: (field_identifier) @function.method.call))
+  ])
+
+(instantiation_expression
+  function: (identifier) @function.call)
 
 ; Function definitions
 (function_declaration
@@ -201,8 +219,26 @@
 (field_declaration
   name: (field_identifier) @variable.member)
 
+(field_declaration
+  tag: (raw_string_literal) @attribute)
+
+(field_declaration
+  tag: (interpreted_string_literal) @attribute)
+
+(import_spec
+  path: [
+    (interpreted_string_literal)
+    (raw_string_literal)
+  ] @string.special.path)
+
 ; Comments
 (comment) @comment @spell
+
+((comment) @keyword.directive
+  (#lua-match? @keyword.directive "^//%s*go:"))
+
+((comment) @keyword.directive
+  (#lua-match? @keyword.directive "^//%s*%+build"))
 
 ; Doc Comments
 (source_file

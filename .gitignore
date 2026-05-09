@@ -9,3 +9,4 @@ nvim-win64*
 AGENTS.md
 GEMINI.md
 .agents/
+skills-lock.json
