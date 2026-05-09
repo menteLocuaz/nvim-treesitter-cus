@@ -6,3 +6,6 @@ nvim.appimage
 nvim-linux-x86_64*
 nvim-macos*
 nvim-win64*
+AGENTS.md
+GEMINI.md
+.agents/
