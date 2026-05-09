@@ -11,8 +11,8 @@
 --   - Close unblocks all pending receivers with an error and prevents further sends.
 --   - Only one value is delivered per send/recv pair (no broadcast).
 
-local Future   = require('nvim-treesitter.async.future').Future
-local Promise  = require('nvim-treesitter.async.future').Promise
+local Future = require('nvim-treesitter.async.future').Future
+local Promise = require('nvim-treesitter.async.future').Promise
 local pack_len = require('nvim-treesitter.async.future').pack_len
 
 --- @class async.Channel
@@ -33,9 +33,9 @@ Channel.__index = Channel
 ---   local ch = Channel.new()
 function Channel.new()
   return setmetatable({
-    _queue   = {},
+    _queue = {},
     _waiters = {},
-    _closed  = false,
+    _closed = false,
   }, Channel)
 end
 

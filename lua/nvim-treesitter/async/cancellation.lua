@@ -50,7 +50,7 @@ end
 ---   token:cancel()  -- called by Task:close() on the owning Task
 function CancellationToken:cancel()
   if self._cancelled then
-    return  -- Already cancelled; ignore duplicate calls.
+    return -- Already cancelled; ignore duplicate calls.
   end
   self._cancelled = true
 

@@ -2,6 +2,7 @@ vim.o.rtp = os.getenv('PLENTEST') .. ',.,' .. vim.o.rtp
 vim.o.rtp = vim.fn.stdpath('data') .. '/site,' .. vim.o.rtp
 vim.cmd.runtime({ 'plugin/query_predicates.lua', bang = true })
 vim.cmd.runtime({ 'plugin/filetypes.lua', bang = true })
+vim.cmd.runtime({ 'plugin/nvim-treesitter.lua', bang = true })
 
 vim.filetype.add({
   extension = {

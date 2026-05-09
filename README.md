@@ -31,7 +31,7 @@ For details on these and how to help improving them, see [CONTRIBUTING.md](./CON
 
 You can install `nvim-treesitter` with your favorite package manager (or using the native `package` feature of vim, see `:h packages`).
 
-This plugin is only guaranteed to work with specific versions of language parsers** (as specified in the `parser.lua` table). **When upgrading the plugin, you must make sure that all installed parsers are updated to the latest version** via `:TSUpdate`.
+This plugin is only guaranteed to work with **specific versions of language parsers** (as specified in the `parsers.lua` table). **When upgrading the plugin, you must make sure that all installed parsers are updated to the latest version** via `:TSUpdate`.
 It is strongly recommended to automate this; e.g., using the following spec with [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
@@ -96,8 +96,8 @@ vim.api.nvim_create_autocmd('FileType', {
 Treesitter-based folding is provided by Neovim. To enable it, put the following in your `ftplugin` or `FileType` autocommand:
 
 ```lua
-vim.wo[0][0].foldexpr = 'v:lua.vim.treesitter.foldexpr()'
-vim.wo[0][0].foldmethod = 'expr'
+vim.wo.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
+vim.wo.foldmethod = 'expr'
 ```
 
 ## Indentation
@@ -131,15 +131,20 @@ vim.api.nvim_create_autocmd('User', { pattern = 'TSUpdate',
 callback = function()
   require('nvim-treesitter.parsers').zimbu = {
     install_info = {
-      url = 'https://github.com/zimbulang/tree-sitter-zimbu',
-      revision = <sha>, -- commit hash for revision to check out; HEAD if missing
+      url = 'https://github.com/zimbulang/tree-sitter-zimbu', -- git repo; use `path` for local path
+      revision = '<sha>', -- tag or commit hash; HEAD if missing
       -- optional entries:
       branch = 'develop', -- only needed if different from default branch
       location = 'parser', -- only needed if the parser is in subdirectory of a "monorepo"
-      generate = true, -- only needed if repo does not contain pre-generated `src/parser.c`
-      generate_from_json = false, -- only needed if repo does not contain `src/grammar.json` either
+      generate = true, -- only needed if repo does not contain pre-generated src/parser.c
+      generate_from_json = false, -- only needed if repo does not contain src/grammar.json either
       queries = 'queries/neovim', -- also install queries from given directory
     },
+    maintainers = { '@me' }, -- the query maintainers
+    tier = 2, -- 1: stable, 2: unstable, 3: unmaintained, 4: unsupported
+    -- optional entries:
+    requires = { 'vim' }, -- if the queries inherit from another language
+    readme_note = "an example language",
   }
 end})
 ```
@@ -155,6 +160,8 @@ Alternatively, if you have a local checkout, you can instead use
       generate_from_json = false,
       queries = 'queries/neovim', -- symlink queries from given directory
     },
+    maintainers = { '@me' },
+    tier = 2,
 ```
 This will always use the state of the directory as-is (i.e., `branch` and `revision` will be ignored).
 
