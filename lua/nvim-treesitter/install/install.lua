@@ -94,7 +94,8 @@ function M.try_install_lang(lang, cache_dir, install_dir, generate, logger)
 
       revision = revision or repo.branch or 'main'
 
-      local err = download.do_download(logger, repo.url, project_name, cache_dir, revision, project_dir)
+      local err =
+        download.do_download(logger, repo.url, project_name, cache_dir, revision, project_dir)
       if err then
         return err
       end

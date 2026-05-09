@@ -24,7 +24,9 @@ function M.do_download(logger, url, project_name, cache_dir, revision, output_di
   local tmp = output_dir .. '-tmp'
 
   local cerr = install_fs.rmpath(tmp, logger)
-  if cerr then logger:debug('Could not clean up tmp dir: %s', cerr) end
+  if cerr then
+    logger:debug('Could not clean up tmp dir: %s', cerr)
+  end
   a.schedule()
 
   url = url:gsub('.git$', '')

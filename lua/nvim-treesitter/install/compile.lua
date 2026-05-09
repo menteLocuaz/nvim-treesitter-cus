@@ -21,10 +21,7 @@ local fs = vim.fs
 function M.do_generate(logger, repo, compile_location)
   local from_json = repo.generate_from_json ~= false
 
-  logger:info(
-    'Generating parser.c from %s...',
-    from_json and 'grammar.json' or 'grammar.js'
-  )
+  logger:info('Generating parser.c from %s...', from_json and 'grammar.json' or 'grammar.js')
 
   local r = system.system({
     'tree-sitter',
@@ -68,7 +65,9 @@ function M.do_install(logger, compile_location, target_location)
 
   local tempfile = target_location .. tostring(uv.hrtime())
   local rerr = uv_rename(target_location, tempfile)
-  if rerr then logger:debug('Could not rename existing parser: %s', rerr) end
+  if rerr then
+    logger:debug('Could not rename existing parser: %s', rerr)
+  end
   uv_unlink(tempfile)
 
   local err = uv_copyfile(compile_location, target_location)
@@ -100,11 +99,15 @@ end
 function M.do_copy_queries(logger, query_src, query_dir)
   install_fs.rmpath(query_dir, logger)
   local err = uv_mkdir(query_dir, 493)
-  if err then return logger:error('Could not create query dir: %s', err) end
+  if err then
+    return logger:error('Could not create query dir: %s', err)
+  end
 
   for f in fs.dir(query_src) do
     local cerr = uv_copyfile(fs.joinpath(query_src, f), fs.joinpath(query_dir, f))
-    if cerr then return logger:error('Could not copy %s: %s', f, cerr) end
+    if cerr then
+      return logger:error('Could not copy %s: %s', f, cerr)
+    end
   end
   a.schedule()
   if err then
