@@ -1,10 +1,19 @@
 local M = {}
 
-function M.render_languages(languages, parsers, bundled_queries)
-  local health = vim.health
-  local report = require('nvim-treesitter.health.report')
+local function info(msg)
+  vim.health.info(msg)
+end
 
-  health.start('Installed languages' .. string.rep(' ', 5) .. 'H L F I J')
+local function error(msg)
+  vim.health.error(msg)
+end
+
+local function section(title)
+  vim.health.start(title)
+end
+
+function M.render_languages(languages, parsers, bundled_queries, query_status_fn)
+  section('Installed languages' .. string.rep(' ', 5) .. 'H L F I J')
 
   for _, lang in ipairs(languages) do
     local parser = parsers[lang]
@@ -12,36 +21,34 @@ function M.render_languages(languages, parsers, bundled_queries)
 
     if parser and parser.install_info then
       for _, query_group in ipairs(bundled_queries) do
-        local status = report.query_status(lang, query_group)
+        local status = query_status_fn(lang, query_group)
         out = out .. status .. ' '
       end
     end
 
-    health.info(vim.fn.trim(out, ' ', 2))
+    info(out)
   end
 
-  health.start('  Legend: [H]ighlights, [L]ocals, [F]olds, [I]ndents, In[J]ections')
+  section('  Legend: [H]ighlights, [L]ocals, [F]olds, [I]ndents, In[J]ections')
 end
 
 function M.render_errors(errors)
-  local health = vim.health
-
   if #errors == 0 then
     return
   end
 
-  health.start('The following errors have been detected in query files:')
+  section('The following errors have been detected in query files:')
   for _, e in ipairs(errors) do
-    local lines = { e.lang .. '(' .. e.type .. '): ' }
+    local lines = { string.format('%s(%s):', e.lang, e.query_group) }
     if e.files then
       for _, file in ipairs(e.files) do
-        table.insert(lines, '\n  ' .. file)
+        table.insert(lines, '  ' .. file)
       end
     end
     if e.err then
-      table.insert(lines, '\n  ' .. e.err)
+      table.insert(lines, '  ' .. e.err)
     end
-    health.error(table.concat(lines, ''))
+    error(table.concat(lines, '\n  '))
   end
 end
 

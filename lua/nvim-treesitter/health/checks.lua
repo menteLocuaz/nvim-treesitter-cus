@@ -1,7 +1,13 @@
 local M = {}
 
+---@class ExecutableInfo
+---@field path string
+---@field version table|nil
+---@field out string
+
 local NVIM_TREESITTER_MINIMUM_ABI = 13
-local TREE_SITTER_MIN_VER = { 0, 26, 1 }
+M.NVIM_TREESITTER_MINIMUM_ABI = NVIM_TREESITTER_MINIMUM_ABI
+M.TREE_SITTER_MIN_VER = { 0, 26, 1 }
 
 function M.check_exe(name)
   if vim.fn.executable(name) == 1 then
@@ -10,6 +16,7 @@ function M.check_exe(name)
     local ok, version = pcall(vim.version.parse, out)
     return { path = path, version = ok and version or nil, out = out }
   end
+  return nil
 end
 
 function M.install_health()
@@ -47,11 +54,11 @@ function M.install_health()
   do
     local ts = M.check_exe('tree-sitter')
     if ts and ts.version then
-      if vim.version.ge(ts.version, TREE_SITTER_MIN_VER) then
+      if vim.version.ge(ts.version, M.TREE_SITTER_MIN_VER) then
         health.ok(string.format('tree-sitter-cli %s (%s)', ts.version, ts.path))
       else
         health.error(
-          string.format('tree-sitter-cli v%d.%d.%d is required', unpack(TREE_SITTER_MIN_VER))
+          string.format('tree-sitter-cli v%d.%d.%d is required', unpack(M.TREE_SITTER_MIN_VER))
         )
       end
     else
@@ -62,14 +69,14 @@ function M.install_health()
   do
     local tar = M.check_exe('tar')
     if tar then
-      health.ok(string.format('tar %s (%s)', tar.version, tar.path))
+      health.ok(string.format('tar %s (%s)', tar.version or 'unknown', tar.path))
     else
       health.error('tar not found')
     end
 
     local curl = M.check_exe('curl')
     if curl then
-      health.ok(string.format('curl %s (%s)', curl.version, curl.path))
+      health.ok(string.format('curl %s (%s)', curl.version or 'unknown', curl.path))
     else
       health.error('curl not found')
     end
