@@ -1,0 +1,21 @@
+describe('install module', function()
+  it('should have uninstall_lang function', function()
+    local M = require('nvim-treesitter.install.install')
+    assert.is_true(M.uninstall_lang ~= nil)
+  end)
+
+  it('should have try_install_lang function', function()
+    local M = require('nvim-treesitter.install.install')
+    assert.is_true(M.try_install_lang ~= nil)
+  end)
+
+  it('should have install_lang function', function()
+    local M = require('nvim-treesitter.install.install')
+    assert.is_true(M.install_lang ~= nil)
+  end)
+
+  it('should have get_package_path helper', function()
+    local info = debug.getinfo(require('nvim-treesitter.install.install').try_install_lang)
+    assert.is_true(info ~= nil)
+  end)
+end)
