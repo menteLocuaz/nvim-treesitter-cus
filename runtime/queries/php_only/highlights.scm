@@ -195,7 +195,7 @@
 
 (named_type
   (name) @type.builtin
-  (#any-of? @type.builtin "static" "self"))
+  (#any-of? @type.builtin "static" "self" "parent"))
 
 (class_declaration
   name: (name) @type)
@@ -368,6 +368,12 @@
   (name) @function.method)
 
 (method_declaration
+  name: (name) @function.method
+  (#any-of? @function.method
+    "__destruct" "__call" "__callStatic" "__get" "__set" "__isset" "__unset" "__sleep" "__wakeup"
+    "__serialize" "__unserialize" "__toString" "__invoke" "__set_state" "__clone" "__debugInfo"))
+
+(method_declaration
   name: (name) @constructor
   (#eq? @constructor "__construct"))
 
@@ -413,7 +419,9 @@
 (relative_scope) @variable.builtin
 
 ((variable_name) @variable.builtin
-  (#eq? @variable.builtin "$this"))
+  (#any-of? @variable.builtin
+    "$this" "$GLOBALS" "$_SERVER" "$_GET" "$_POST" "$_FILES" "$_COOKIE" "$_SESSION" "$_REQUEST"
+    "$_ENV" "$argc" "$argv" "$php_errormsg" "$HTTP_RAW_POST_DATA" "$http_response_header"))
 
 ; Namespace
 (namespace_definition
@@ -427,7 +435,12 @@
   "namespace" @module.builtin)
 
 ; Attributes
-(attribute_list) @attribute
+(attribute
+  name: [
+    (name)
+    (qualified_name)
+    (relative_name)
+  ] @attribute)
 
 ; Conditions ( ? : )
 (conditional_expression
@@ -450,6 +463,22 @@
   (nowdoc_body)
   (shell_command_expression) ; backtick operator: `ls -la`
 ] @string
+
+(encapsed_string
+  "{" @punctuation.special
+  (variable_name) @variable
+  "}" @punctuation.special)
+
+(encapsed_string
+  (variable_name) @variable)
+
+(heredoc_body
+  "{" @punctuation.special
+  (variable_name) @variable
+  "}" @punctuation.special)
+
+(heredoc_body
+  (variable_name) @variable)
 
 (escape_sequence) @string.escape
 
@@ -474,7 +503,7 @@
 (named_label_statement) @label
 
 (property_hook
-  (name) @label)
+  (name) @function.method)
 
 (visibility_modifier
-  (operation) @label)
+  (operation) @keyword.modifier)
