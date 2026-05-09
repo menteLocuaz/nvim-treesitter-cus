@@ -58,7 +58,8 @@ local function do_install(languages, options)
   for _, lang in ipairs(languages) do
     tasks[#tasks + 1] = a.async(--[[@async]] function()
       a.schedule()
-      local success = install_mod.install_lang(lang, cache_dir, install_dir, options.force, options.generate)
+      local success =
+        install_mod.install_lang(lang, cache_dir, install_dir, options.force, options.generate)
       if success then
         done = done + 1
       end
@@ -94,10 +95,7 @@ M.update = a.async(function(languages, options)
 
   local summary = options and options.summary
   if #languages > 0 then
-    return do_install(
-      languages,
-      { force = true, summary = summary, max_jobs = options.max_jobs }
-    )
+    return do_install(languages, { force = true, summary = summary, max_jobs = options.max_jobs })
   else
     if options and options.summary then
       log.info('All parsers are up-to-date')
