@@ -26,14 +26,14 @@ local INSTALL_TIMEOUT = 60000
 
 local installing = {} ---@type table<string,boolean?>
 
+local fn = vim.fn
+
 ---@param ... string
 ---@return string
 local function get_package_path(...)
-  local info = assert(debug.getinfo(1, 'S'))
-  return fs.joinpath(fn.fnamemodify(info.source:sub(2), ':p:h:h:h'), ...)
+  local dbg = assert(debug.getinfo(1, 'S'))
+  return fs.joinpath(fn.fnamemodify(dbg.source:sub(2), ':p:h:h:h'), ...)
 end
-
-local fn = vim.fn
 
 ---@async
 ---@param logger Logger
