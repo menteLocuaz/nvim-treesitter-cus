@@ -9,7 +9,7 @@ local function complete_available_parsers(arglead)
   return vim.tbl_filter(
     --- @param v string
     function(v)
-      return v:find(arglead) ~= nil
+      return v:find(arglead, 1, true) ~= nil
     end,
     require('nvim-treesitter.config').get_available()
   )
@@ -19,7 +19,7 @@ local function complete_installed_parsers(arglead)
   return vim.tbl_filter(
     --- @param v string
     function(v)
-      return v:find(arglead) ~= nil
+      return v:find(arglead, 1, true) ~= nil
     end,
     require('nvim-treesitter.config').get_installed()
   )
@@ -93,7 +93,9 @@ api.nvim_create_user_command('TSHealthInfo', function()
   end
 
   vim.list_extend(info, { '', '=== Installed parsers ===' })
-  for _, lang in ipairs(config.get_installed()) do
+  local installed = vim.deepcopy(config.get_installed())
+  table.sort(installed)
+  for _, lang in ipairs(installed) do
     table.insert(info, '  ' .. lang)
   end
 

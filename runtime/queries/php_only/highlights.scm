@@ -453,7 +453,38 @@
     "strict_types"
     "ticks"
     "encoding"
-  ] @variable.parameter)
+  ] @constant)
+
+; Named arguments
+(named_argument
+  name: (name) @variable.parameter)
+
+; Static variable
+(static_variable_declaration
+  (variable_name) @variable)
+
+; Match expression
+(match_expression
+  "match" @keyword.conditional)
+
+(match_expression
+  (match_arm
+    expression: (_) @constant))
+
+; Arrow functions
+(arrow_function
+  "fn" @keyword.function)
+
+; First-class callable
+(scoped_call_expression
+  (name) @function.call
+  (parenthesized_expression
+    (_)))
+
+; Constructor property promotion
+(parameter
+  visibility_modifier: (_)
+  (variable_name) @property)
 
 ; Basic tokens
 [
