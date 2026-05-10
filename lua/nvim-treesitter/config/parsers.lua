@@ -2,8 +2,6 @@ local M = {}
 
 local TIERS = { 'stable', 'unstable', 'unmaintained', 'unsupported' }
 
-local ts_update_fired = false
-
 local function expand_tiers(list)
   for i, tier in ipairs(TIERS) do
     if vim.list_contains(list, tier) then
@@ -26,11 +24,6 @@ M.expand_tiers = expand_tiers
 ---@param tier integer? only get parsers of specified tier
 ---@return string[]
 function M.get_available(tier)
-  if not ts_update_fired then
-    ts_update_fired = true
-    vim.api.nvim_exec_autocmds('User', { pattern = 'TSUpdate' })
-  end
-
   local parsers = require('nvim-treesitter.parsers')
   local languages = vim.tbl_keys(parsers)
   table.sort(languages)
