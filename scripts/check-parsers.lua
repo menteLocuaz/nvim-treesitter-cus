@@ -2,30 +2,48 @@
 vim.o.rtp = vim.o.rtp .. ',.'
 
 local configs = require('nvim-treesitter.parsers')
-local parsers = #_G.arg > 0 and { unpack(_G.arg) }
+
+local parsers = #_G.arg > 0 and { table.unpack(_G.arg) }
   or require('nvim-treesitter.config').get_installed('parsers')
 
-local data = {} ---@type table[]
-local errors = {} ---@type string[]
-for _, lang in pairs(parsers) do
+---@class ParserStateInfo
+---@field lang string
+---@field abi integer
+---@field state_count integer
+
+---@type ParserStateInfo[]
+local data = {}
+
+---@type string[]
+local errors = {}
+
+for _, lang in ipairs(parsers) do
   if configs[lang] and configs[lang].install_info then
     local ok, info = pcall(vim.treesitter.language.inspect, lang)
     if not ok then
       errors[#errors + 1] = string.format('%s: %s', lang, info)
     else
-      data[#data + 1] = { lang = lang, abi = info.abi_version, state_count = info.state_count }
+      data[#data + 1] = {
+        lang = lang,
+        abi = info.abi_version or 0,
+        state_count = info.state_count or 0,
+      }
     end
   end
 end
 
 if #errors > 0 then
   print('::group::Errors')
+
   for _, err in ipairs(errors) do
     print(err)
   end
+
   print('::endgroup::')
   print('Check failed!\n')
+
   vim.cmd.cq()
+  return
 else
   print('::group::State counts')
   table.sort(data, function(a, b)

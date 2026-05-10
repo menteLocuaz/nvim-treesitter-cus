@@ -1,20 +1,32 @@
 local M = {}
 
---- @param filename string
---- @return string
+---@param filename string
+---@return string
 function M.read_file(filename)
-  local file = assert(io.open(filename, 'r'))
-  local r = file:read('*a')
+  local file = assert(io.open(filename, 'rb'))
+
+  local ok, result = pcall(file.read, file, '*a')
   file:close()
-  return r
+
+  if not ok then
+    error(result)
+  end
+
+  ---@cast result string
+  return result
 end
 
---- @param filename string
---- @param content string
+---@param filename string
+---@param content string
 function M.write_file(filename, content)
-  local file = assert(io.open(filename, 'w'))
-  file:write(content)
+  local file = assert(io.open(filename, 'wb'))
+
+  local ok, err = pcall(file.write, file, content)
   file:close()
+
+  if not ok then
+    error(err)
+  end
 end
 
 return M
