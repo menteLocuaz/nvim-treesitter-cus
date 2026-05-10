@@ -16,12 +16,14 @@ local M = {}
 
 local CAPTURE = utils.CAPTURE
 
+-- Sentinel value to represent "cached but not found".
+-- Lua cannot store explicit nil as a value (it deletes the key), so we use a unique marker.
+local CACHE_MISS = {}
+
 -- Weak-keyed cache mapping parent TSNode -> align capture result.
 -- Weak keys allow entries to be GC'd automatically when the node is no longer
 -- referenced by the syntax tree, preventing stale data after re-parses.
--- Values are either a capture result table or explicit nil (stored as false
--- sentinel by Lua's setmetatable, but treated as nil by resolve_align_from_children).
----@type table<TSNode, table?>
+---@type table<TSNode, table|typeof(CACHE_MISS)>
 local align_cache = setmetatable({}, { __mode = 'k' })
 
 --- Returns the most specific (deepest) Treesitter node that covers the
@@ -50,8 +52,10 @@ end
 --- @return boolean
 local function has_capture(q, capture, node)
   local captures = q[capture]
-  local node_id = node:id()
-  return captures and captures[node_id] ~= nil or false
+  if not captures then
+    return false
+  end
+  return captures[node:id()] ~= nil
 end
 
 --- Checks whether the last token on a line is a comment node, and if so,
@@ -87,7 +91,8 @@ local function strip_trailing_comment(root, prevlnum, indentcols, prevline)
 
   -- Trim the line up to the comment's start column to find the last real token.
   -- scol is absolute; subtract indentcols to get a position within `prevline`.
-  local trimmed = vim.trim(prevline:sub(1, scol - indentcols))
+  local rel_col = math.max(scol - indentcols, 0)
+  local trimmed = vim.trim(prevline:sub(1, rel_col))
   local col = indentcols + #trimmed - 1
 
   return get_node(root, prevlnum - 1, col)
@@ -121,6 +126,11 @@ local function resolve_blank_line_node(root, line_cache, row, prevlnum, q)
   local raw_prevline = line_cache:get(prevlnum)
   local indent = line_cache:get_indent(prevlnum)
   local trimmed = vim.trim(raw_prevline)
+
+  if #trimmed == 0 then
+    return get_node(root, row, 0)
+  end
+
   -- Position of the last character of the trimmed content (absolute column).
   local endcol = indent + #trimmed - 1
 
@@ -159,6 +169,10 @@ end
 function M.resolve_target_node(root, line_cache, lnum, q)
   local line = line_cache:get(lnum)
 
+  if not line then
+    return nil
+  end
+
   if line:find('^%s*$') then
     -- Blank line: find the previous non-blank line and use its node as proxy.
     local prevlnum = vim.fn.prevnonblank(lnum)
@@ -192,14 +206,20 @@ end
 --- @return table|nil   The alignment capture data, or nil if no child has it.
 ---
 --- Boundary: Only direct children are checked (not deeper descendants).
---- If no child has @indent.align, nil is cached to prevent re-scanning.
+--- If no child has @indent.align, CACHE_MISS is stored to prevent re-scanning.
 function M.resolve_align_from_children(node, q)
-  -- Return cached result if available (nil stored as explicit nil in the weak table).
-  if align_cache[node] ~= nil then
-    return align_cache[node]
+  local captures = q[CAPTURE.ALIGN]
+  -- Fast path: no align captures in this language at all (global condition).
+  -- Skip cache entirely to avoid polluting it with CACHE_MISS for every node.
+  if not captures or not next(captures) then
+    return nil
   end
 
-  local captures = q[CAPTURE.ALIGN]
+  -- Now safe to check cache, since we know the language has align captures.
+  local cached = align_cache[node]
+  if cached ~= nil then
+    return cached ~= CACHE_MISS and cached or nil
+  end
 
   for child in node:iter_children() do
     if has_capture(q, CAPTURE.ALIGN, child) then
@@ -209,20 +229,15 @@ function M.resolve_align_from_children(node, q)
     end
   end
 
-  -- Cache the negative result to avoid re-scanning this node's children.
-  align_cache[node] = nil
+  align_cache[node] = CACHE_MISS
   return nil
 end
 
---- Clears the align_cache manually.
---- Should be called after a buffer re-parse to ensure stale alignment data
---- from the previous tree is not used with nodes from the new tree.
---- (The weak keys handle GC automatically, but explicit clearing is faster
---- when a full invalidation is needed, e.g., after a large edit.)
+---Clears the align_cache by reallocating the table.
+---Should be called after a buffer re-parse to ensure stale alignment data
+---from the previous tree is not used with nodes from the new tree.
 function M.clear_cache()
-  for k in pairs(align_cache) do
-    align_cache[k] = nil
-  end
+  align_cache = setmetatable({}, { __mode = 'k' })
 end
 
 return M

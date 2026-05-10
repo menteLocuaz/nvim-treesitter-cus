@@ -110,6 +110,62 @@ vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
 
 (Note the specific quotes used.)
 
+### How it works
+
+The indent module walks the syntax tree starting from the node at the cursor position, applying rules defined in query files (`runtime/queries/<lang>/indents.scm`). The pipeline processes captures in order:
+
+1. **Resolve target node** - Determine which Treesitter node to start from
+2. **Walk ancestors** - Traverse parent nodes applying indent rules
+3. **Compute final indent** - Based on captures and context
+
+### Query Captures
+
+Define these captures in your language's `indents.scm`:
+
+| Capture | Description | Example |
+|---------|-------------|---------|
+| `@indent.begin` | Node starts an indent block | `function`, `if`, `for` |
+| `@indent.end` | Node ends an indent block | `end`, `}`, `)` |
+| `@indent.align` | Alignment target for children | `(` in function calls |
+| `@indent.zero` | Force indent to column 0 | Top-level declarations |
+| `@indent.auto` | Auto-indent based on syntax | Continuation lines |
+| `@indent.branch` | Branch indicator | `else`, `catch`, `|` |
+| `@indent.dedent` | Force dedent after node | `break`, `return` |
+| `@indent.ignore` | Skip indent calculation | Comments, strings |
+
+### Example Query File
+
+```scheme
+; lua/indents.scm
+; inherits: _lang
+
+[
+  (function_declaration)
+  (if_statement)
+  (for_statement)
+  (while_statement)
+  (do_block)
+] @indent.begin
+
+[
+  (end_clause)
+  (else_clause)
+  (elseif_clause)
+] @indent.branch
+
+"end" @indent.end
+
+(comment) @indent.ignore
+```
+
+### Creating Custom Indent Queries
+
+1. Create or edit `runtime/queries/<lang>/indents.scm`
+2. Define captures for your language's syntax constructs
+3. Test with `:TSInstall <lang>` and verify indentation behavior
+
+For more details, see [docs/indent-node.md](docs/indent-node.md).
+
 ## Injections
 
 Injections are used for multi-language documents, see `:h treesitter-language-injections`. No setup is needed.

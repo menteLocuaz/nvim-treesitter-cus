@@ -62,23 +62,24 @@ end
 -- Invalidated by clear_error_cache() after each buffer re-parse.
 local error_ancestor_cache = {}
 
---- Returns true if any ancestor of `node` (up to the root) contains a
---- Treesitter parse error. Used by rules to skip unreliable indent calculations
---- in syntactically broken regions of the buffer.
+---Returns true if `node` or any of its ancestors contains a Treesitter parse error.
+---Used by rules to skip unreliable indent calculations in syntactically broken
+---regions of the buffer.
 ---
---- Results are memoized by node ID. Note: node IDs are reused across re-parses,
---- so clear_error_cache() must be called after each parse to avoid stale hits.
----
---- @param node TSNode  The node to check.
---- @return boolean     True if any ancestor has_error(), false otherwise.
----
---- Boundary: Only ancestors are checked, not the node itself. If the node
---- itself has an error but no ancestor does, this returns false.
+---Results are memoized by node ID. Note: node IDs are reused across re-parses,
+---so clear_error_cache() must be called after each parse to avoid stale hits.
+---@param node TSNode The node to check.
+---@return boolean True if node or any ancestor has_error(), false otherwise.
 local function has_error_ancestor(node)
   local node_id = node:id()
   local cached = error_ancestor_cache[node_id]
   if cached ~= nil then
     return cached
+  end
+
+  if node:has_error() then
+    error_ancestor_cache[node_id] = true
+    return true
   end
 
   local parent = node:parent()
@@ -159,8 +160,7 @@ local function find_delimiter(line, delimiter, node)
     return nil, false
   end
 
-  -- end_() returns the end column of the node's last character (0-based).
-  local end_col = delim_node:end_()
+  local _, end_col = delim_node:end_()
   return delim_node, is_last_in_line(line, end_col)
 end
 

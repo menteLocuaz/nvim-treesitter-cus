@@ -47,13 +47,26 @@ local pipeline = {
 -- Re-export COMMENT_PARSERS so external modules can extend or inspect the list.
 M.comment_parsers = COMMENT_PARSERS
 
+-- Invalidate caches when buffer is unloaded/deleted/wiped
+vim.api.nvim_create_autocmd({ 'BufUnload', 'BufDelete', 'BufWipeout' }, {
+  callback = function(args)
+    cache.LineCache.invalidate(args.buf)
+    require('nvim-treesitter.indent.parser').clear_cache(args.buf)
+    require('nvim-treesitter.indent.utils').clear_error_cache()
+    require('nvim-treesitter.indent.node').clear_cache()
+  end,
+})
+
 --- @class IndentResult
 --- Returned by each pipeline rule's apply() method.
---- @field indent    integer   The new indent level to apply (in spaces).
---- @field processed boolean?  If true, marks the node's start row as processed
----                            so subsequent rules or ancestor passes can skip it.
---- @field stop      boolean?  If true, immediately returns `indent` as the final
----                            result, bypassing all remaining rules and ancestors.
+--- @field indent    integer          The new indent level to apply (in spaces).
+--- @field processed boolean?         If true, marks the node's start row as processed
+---                                   so subsequent rules or ancestor passes can skip it.
+--- @field stop      boolean?         If true, immediately returns `indent` as the final
+---                                   result, bypassing all remaining rules and ancestors.
+--- @field kind      string?          One of constants.KIND values: 'relative', 'absolute',
+---                                   'stop'. Defaults to 'relative' if not specified.
+---                                   Must match constants.KIND.RELATIVE for processed to apply.
 
 --- @class IndentContext
 --- Mutable state object threaded through the entire pipeline for a single
@@ -80,21 +93,20 @@ local IndentContext = {}
 --- @param bufnr       integer  Buffer number.
 --- @param row         integer  0-based target row.
 --- @param indent_size integer  Shiftwidth value.
---- @param queries     table    Indent queries (must have a `_root` TSNode field).
---- @param line_cache  table    LineCache instance for this buffer.
+--- @param queries     table    Indent query captures (without root).
+--- @param root       TSNode   Root tree node for initial indent resolution.
+--- @param line_cache table    LineCache instance for this buffer.
 --- @return IndentContext
-function IndentContext.new(bufnr, row, indent_size, queries, line_cache)
+function IndentContext.new(bufnr, row, indent_size, queries, root, line_cache)
   local self = setmetatable({}, { __index = IndentContext })
   self.bufnr = bufnr
   self.row = row
-  -- Resolve the initial indent from the root node (e.g., for embedded languages
-  -- that start indented within a host document).
-  self.indent = parser.resolve_initial_indent(queries._root)
+  self.indent = parser.resolve_initial_indent(root)
   self.indent_size = indent_size
   self.queries = queries
   self.line_cache = line_cache
   self.processed_rows = {}
-  self._root = queries._root
+  self._root = root
   return self
 end
 
@@ -174,9 +186,8 @@ function M.get_indent(lnum)
     return 0
   end
 
-  local line_cache = cache.LineCache.new(bufnr)
+  local line_cache = cache.LineCache.get_global(bufnr)
   local q = parser.get_indents(bufnr, root, lang_tree:lang(), row)
-  q._root = root
 
   local target_node = node_mod.resolve_target_node(root, line_cache, lnum, q)
 
@@ -188,7 +199,7 @@ function M.get_indent(lnum)
     return 0
   end
 
-  local ctx = IndentContext.new(bufnr, row, indent_size, q, line_cache)
+  local ctx = IndentContext.new(bufnr, row, indent_size, q, root, line_cache)
 
   -- Walk from the target node up to the root, running the full rule pipeline
   -- at each level. This allows rules at different levels of the tree to each
@@ -196,8 +207,8 @@ function M.get_indent(lnum)
   for node in NodeWalker.parents(target_node) do
     ctx.node = node
     ctx.node_id = node:id()
-    ctx.srow = node:start()
-    ctx.erow = node:end_()
+    ctx.srow = select(1, node:start())
+    ctx.erow = select(1, node:end_())
 
     for _, rule in ipairs(pipeline) do
       local ok, result = pcall(rule.apply, rule, ctx)
@@ -206,7 +217,7 @@ function M.get_indent(lnum)
         -- calling vim.notify from inside indentexpr, which can cause issues),
         -- then return the best indent computed so far rather than crashing.
         vim.schedule(function()
-          vim.notify('[treesitter-indent] Rule error: ' .. tostring(result), vim.log.WARN)
+          vim.notify('[treesitter-indent] Rule error: ' .. tostring(result), vim.log.levels.WARN)
         end)
         return ctx.indent
       end

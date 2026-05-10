@@ -441,11 +441,6 @@ return {
     maintainers = { '@RubixDev' },
     tier = 2,
   },
-  ecma = {
-    maintainers = { '@steelsojka' },
-    readme_note = 'queries required by javascript, typescript, tsx, qmljs',
-    tier = 2,
-  },
   editorconfig = {
     install_info = {
       revision = 'v2.0.0',
@@ -968,11 +963,6 @@ return {
     },
     maintainers = { '@TravonteD' },
     requires = { 'html_tags' },
-    tier = 2,
-  },
-  html_tags = {
-    maintainers = { '@TravonteD' },
-    readme_note = 'queries required by html, astro, vue, svelte',
     tier = 2,
   },
   htmldjango = {
