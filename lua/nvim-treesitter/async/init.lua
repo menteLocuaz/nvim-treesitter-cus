@@ -7,6 +7,10 @@
 local Scheduler = require('nvim-treesitter.async.scheduler')
 local Future = require('nvim-treesitter.async.future').Future
 local Promise = require('nvim-treesitter.async.future').Promise
+
+-- Note: Future and Promise have separate metatables.
+-- Promise is the write side, Future is the read side.
+-- M.await handles Future via the same logic (both use on_resolved).
 local Task = require('nvim-treesitter.async.task').Task
 local CancellationToken = require('nvim-treesitter.async.cancellation')
 local Semaphore = require('nvim-treesitter.async.semaphore')
@@ -148,6 +152,8 @@ end
 --- @param task Task  The Task to await.
 --- @return any       Return values of the Task's function.
 local function await_task(task)
+  -- Contract: pack_len result has error at [1], values from [2] onwards.
+  -- This convention is shared by Task and Future callbacks.
   local res = pack_len(yield(function(callback)
     task:await(callback)
   end))
@@ -206,7 +212,10 @@ end
 --- @param ...     any      Arguments forwarded to the inner function.
 --- @return any             Return values of the inner function.
 local function await_taskfun(taskfun, ...)
-  return taskfun._fun(...)
+  local ok, err = pcall(taskfun._fun, ...)
+  if not ok then
+    error(err, 0)
+  end
 end
 
 --- Suspends the current async task until the given awaitable completes.
@@ -271,12 +280,16 @@ end
 
 -- Provide M.schedule as a pre-wrapped vim.schedule for convenience.
 -- Suspends the current task until the next Neovim event loop tick.
--- Only defined when vim.schedule is available (i.e., inside Neovim).
+-- Throws a helpful error if called outside Neovim.
 --
 -- Example (inside async context):
 --   M.await(M.schedule)  -- yield to the main loop before touching the UI
 if vim.schedule then
   M.schedule = M.awrap(1, vim.schedule)
+else
+  M.schedule = function()
+    error('M.schedule requires Neovim (vim.schedule not available)', 2)
+  end
 end
 
 --- Creates an object that is both callable and has a GC finalizer.
@@ -298,13 +311,17 @@ end
 --- Each call to the iterator suspends until the next Task completes,
 --- yielding results in completion order (not submission order).
 ---
+--- Note: The returned iterator is a callable object, not a Lua iterator.
+--- Use it like: `local iter = M.iter(tasks); local i, err, res = iter()`
+--- It does NOT work with `for i, err, res in M.iter(tasks) do`.
+---
 --- @param tasks Task[]  A list of Task objects to iterate over.
 --- @return function     An async iterator: each call returns (index, err, ...) for
 ---                      the next completed task, or () when all tasks are done.
 ---
 --- Boundary: Must be called from within an async context.
 --- The iterator must be consumed from the same async context it was created in.
---- Dropping the iterator (GC) sets `can_gc = true` but does not cancel tasks.
+--- Dropping the iterator cancels remaining tasks to prevent resource leaks.
 ---
 --- Example:
 ---   local work = M.async(function()
@@ -322,8 +339,8 @@ function M.iter(tasks)
   local results = {} -- Buffer for completed task results not yet consumed.
   local waiter = nil -- Pending callback waiting for the next result.
   local remaining = #tasks
-  local can_gc = false -- Set to true when the iterator is GC'd (unused currently).
 
+  -- Safe: Neovim's event loop is single-threaded; no concurrent access possible.
   -- Register completion callbacks for all tasks up front.
   -- Results are either dispatched immediately to a waiting consumer,
   -- or buffered in `results` for later consumption.
@@ -343,6 +360,7 @@ function M.iter(tasks)
   end
 
   -- Return a GC-aware callable that yields the next completed task result.
+  -- Cancel remaining tasks when the iterator is garbage collected.
   return gc_fun(
     M.awrap(1, function(callback)
       if #results > 0 then
@@ -358,7 +376,9 @@ function M.iter(tasks)
       end
     end),
     function()
-      can_gc = true
+      for _, task in ipairs(tasks) do
+        task:cancel()
+      end
     end
   )
 end

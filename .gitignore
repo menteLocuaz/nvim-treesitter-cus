@@ -1,12 +1,28 @@
+# --- Dependencies & Runtime ---
 .test-deps
+skills-lock.json
+.agents
+
+# --- Documentation & Tags ---
 doc/tags
-.luacheckcache
 /tags
+
+# --- Linter & Tooling Cache ---
+.luacheckcache
+.agents/
+
+# --- Artifacts & Binaries ---
 nvim.appimage
 nvim-linux-x86_64*
 nvim-macos*
 nvim-win64*
-AGENTS.md
-GEMINI.md
-.agents/
-skills-lock.json
+
+# --- Project Specific Docs (AI/Agents) ---
+# Descomenta las siguientes líneas si quieres ignorar estas notas personales
+# AGENTS.md
+# GEMINI.md
+
+# --- Common Lua/Neovim extras (Recomendado) ---
+*.so
+*.dll
+.history/
