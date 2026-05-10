@@ -3,14 +3,34 @@ local ts = vim.treesitter
 local utils = require('nvim-treesitter.indent.utils')
 local CAPTURE = utils.CAPTURE
 
-local EMPTY = setmetatable({}, {
+local EMPTY_METADATA = setmetatable({}, {
   __newindex = function()
     error('attempt to mutate EMPTY metadata')
   end,
   __metatable = false,
 })
 
+local function new_capture_map()
+  return {
+    [CAPTURE.AUTO] = {},
+    [CAPTURE.BEGIN] = {},
+    [CAPTURE.END] = {},
+    [CAPTURE.DEDENT] = {},
+    [CAPTURE.BRANCH] = {},
+    [CAPTURE.IGNORE] = {},
+    [CAPTURE.ALIGN] = {},
+    [CAPTURE.ZERO] = {},
+  }
+end
+
+local VIEWPORT_PADDING = 200
+
+---Cache keyed by bufnr, then by cache_key (lang + root range).
+---@type table<integer, table<string, table>>
 local indents_cache = {}
+
+---Tracks changedtick per buffer to detect modifications.
+---@type table<integer, integer>
 local changedtick_cache = {}
 
 ---@param parser vim.treesitter.LanguageTree
@@ -31,12 +51,8 @@ local function resolve_root(parser, row)
       return
     end
 
-    local size = local_root:byte_length()
-    if best_size and size >= best_size then
-      return
-    end
-
     if ts.is_in_node_range(local_root, row, 0) then
+      local size = local_root:byte_length()
       if not best_size or size < best_size then
         root = local_root
         lang_tree = tree
@@ -52,59 +68,31 @@ local function resolve_initial_indent(root)
   if not root then
     return 0
   end
-  local srow, _, root_start = root:start()
-  if root_start ~= 0 then
+  local srow, scol, _ = root:start()
+  if srow ~= 0 or scol ~= 0 then
     return vim.fn.indent(srow + 1)
   end
   return 0
 end
 
-local function should_clear(bufnr)
+local function clear_if_stale(bufnr)
   local tick = vim.b[bufnr].changedtick
   if changedtick_cache[bufnr] ~= tick then
     changedtick_cache[bufnr] = tick
-    indents_cache = {}
-    return true
+    indents_cache[bufnr] = nil
   end
-  return false
 end
 
+---Get indent query results for a buffer.
 ---@param bufnr integer
 ---@param root TSNode
 ---@param lang string
 ---@param row? integer
 ---@return table<string, table<integer, table>>
-local VIEWPORT_PADDING = 200
-
 local function get_indents(bufnr, root, lang, row)
-  should_clear(bufnr)
+  clear_if_stale(bufnr)
 
   local srow, scol, erow, ecol = root:range()
-  local cache_key = string.format('%d:%s:%d:%d:%d:%d', bufnr, lang, srow, scol, erow, ecol)
-
-  local cached = indents_cache[cache_key]
-  if cached then
-    return cached
-  end
-
-  local map = {
-    [CAPTURE.AUTO] = {},
-    [CAPTURE.BEGIN] = {},
-    [CAPTURE.END] = {},
-    [CAPTURE.DEDENT] = {},
-    [CAPTURE.BRANCH] = {},
-    [CAPTURE.IGNORE] = {},
-    [CAPTURE.ALIGN] = {},
-    [CAPTURE.ZERO] = {},
-  }
-
-  local query = ts.query.get(lang, 'indents')
-  if not query then
-    indents_cache[cache_key] = map
-    return map
-  end
-
-  local captures = query.captures
 
   local start_row, end_row
   if row ~= nil then
@@ -115,17 +103,37 @@ local function get_indents(bufnr, root, lang, row)
     end_row = erow
   end
 
+  local cache_key = table.concat({ lang, srow, scol, erow, ecol, start_row, end_row }, ':')
+
+  local buf_cache = indents_cache[bufnr] or {}
+  indents_cache[bufnr] = buf_cache
+
+  local cached = buf_cache[cache_key]
+  if cached then
+    return cached
+  end
+
+  local map = new_capture_map()
+
+  local query = ts.query.get(lang, 'indents')
+  if not query then
+    buf_cache[cache_key] = map
+    return map
+  end
+
+  local captures = query.captures
+
   for id, node, metadata in query:iter_captures(root, bufnr, start_row, end_row) do
     local capture = captures[id]
-    if capture and capture:sub(1, 1) ~= '_' then
+    if capture and string.byte(capture, 1) ~= 95 then
       local bucket = map[capture]
       if bucket then
-        bucket[node:id()] = metadata or EMPTY
+        bucket[node:id()] = metadata or EMPTY_METADATA
       end
     end
   end
 
-  indents_cache[cache_key] = map
+  buf_cache[cache_key] = map
   return map
 end
 
@@ -135,8 +143,14 @@ local M = {
   get_indents = get_indents,
 }
 
-function M.clear_cache()
-  indents_cache = {}
+function M.clear_cache(bufnr)
+  if bufnr then
+    indents_cache[bufnr] = nil
+    changedtick_cache[bufnr] = nil
+  else
+    indents_cache = {}
+    changedtick_cache = {}
+  end
 end
 
 return M

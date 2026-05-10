@@ -16,12 +16,14 @@ local M = {}
 
 local CAPTURE = utils.CAPTURE
 
+-- Sentinel value to represent "cached but not found".
+-- Lua cannot store explicit nil as a value (it deletes the key), so we use a unique marker.
+local CACHE_MISS = {}
+
 -- Weak-keyed cache mapping parent TSNode -> align capture result.
 -- Weak keys allow entries to be GC'd automatically when the node is no longer
 -- referenced by the syntax tree, preventing stale data after re-parses.
--- Values are either a capture result table or explicit nil (stored as false
--- sentinel by Lua's setmetatable, but treated as nil by resolve_align_from_children).
----@type table<TSNode, table?>
+---@type table<TSNode, table|typeof(CACHE_MISS)>
 local align_cache = setmetatable({}, { __mode = 'k' })
 
 --- Returns the most specific (deepest) Treesitter node that covers the
@@ -192,11 +194,11 @@ end
 --- @return table|nil   The alignment capture data, or nil if no child has it.
 ---
 --- Boundary: Only direct children are checked (not deeper descendants).
---- If no child has @indent.align, nil is cached to prevent re-scanning.
+--- If no child has @indent.align, CACHE_MISS is stored to prevent re-scanning.
 function M.resolve_align_from_children(node, q)
-  -- Return cached result if available (nil stored as explicit nil in the weak table).
-  if align_cache[node] ~= nil then
-    return align_cache[node]
+  local cached = align_cache[node]
+  if cached ~= nil then
+    return cached ~= CACHE_MISS and cached or nil
   end
 
   local captures = q[CAPTURE.ALIGN]
@@ -209,20 +211,15 @@ function M.resolve_align_from_children(node, q)
     end
   end
 
-  -- Cache the negative result to avoid re-scanning this node's children.
-  align_cache[node] = nil
+  align_cache[node] = CACHE_MISS
   return nil
 end
 
---- Clears the align_cache manually.
---- Should be called after a buffer re-parse to ensure stale alignment data
---- from the previous tree is not used with nodes from the new tree.
---- (The weak keys handle GC automatically, but explicit clearing is faster
---- when a full invalidation is needed, e.g., after a large edit.)
+---Clears the align_cache by reallocating the table.
+---Should be called after a buffer re-parse to ensure stale alignment data
+---from the previous tree is not used with nodes from the new tree.
 function M.clear_cache()
-  for k in pairs(align_cache) do
-    align_cache[k] = nil
-  end
+  align_cache = setmetatable({}, { __mode = 'k' })
 end
 
 return M
