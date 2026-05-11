@@ -221,15 +221,6 @@ local function get_indents(bufnr, root, lang, row)
 
   local srow, scol, erow, ecol = root:range()
 
-  local start_row, end_row
-  if row ~= nil then
-    start_row = math.max(row - VIEWPORT_PADDING, srow)
-    end_row = math.min(row + VIEWPORT_PADDING, erow)
-  else
-    start_row = srow
-    end_row = erow
-  end
-
   local cache_key = lang
     .. ':'
     .. srow
@@ -239,10 +230,6 @@ local function get_indents(bufnr, root, lang, row)
     .. erow
     .. ':'
     .. ecol
-    .. ':'
-    .. start_row
-    .. ':'
-    .. end_row
 
   local buf_cache = indents_cache[bufnr]
   if buf_cache then
@@ -269,7 +256,9 @@ local function get_indents(bufnr, root, lang, row)
 
   local valid_captures = get_valid_captures(lang, query)
 
-  for id, node, metadata in query:iter_captures(root, bufnr, start_row, end_row) do
+  -- Use the full range of the resolved root to ensure all relevant ancestors
+  -- are captured, even if they start far outside the current viewport.
+  for id, node, metadata in query:iter_captures(root, bufnr, srow, erow) do
     local capture = valid_captures[id]
     if capture then
       local bucket = map[capture]
