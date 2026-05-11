@@ -1,4 +1,5 @@
-vim.o.rtp = os.getenv('PLENTEST') .. ',.,' .. vim.o.rtp
+local plentest_path = os.getenv('PLENTEST') or ''
+vim.o.rtp = plentest_path .. ',.,./runtime,' .. vim.o.rtp
 vim.o.rtp = vim.fn.stdpath('data') .. '/site,' .. vim.o.rtp
 vim.cmd.runtime({ 'plugin/query_predicates.lua', bang = true })
 vim.cmd.runtime({ 'plugin/filetypes.lua', bang = true })

@@ -17,10 +17,13 @@ local function process(ctx)
 
   local branch_meta = queries[utils.CAPTURE.BRANCH][node_id]
   local dedent_meta = queries[utils.CAPTURE.DEDENT][node_id]
+  local end_meta = queries[utils.CAPTURE.END][node_id]
 
   local is_start_row = srow == row
 
-  local should_dedent = (branch_meta and is_start_row) or (dedent_meta and not is_start_row)
+  local should_dedent = (branch_meta and is_start_row)
+    or (dedent_meta and not is_start_row)
+    or (end_meta and is_start_row)
 
   if should_dedent then
     return {
