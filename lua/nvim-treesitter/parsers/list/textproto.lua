@@ -1,0 +1,8 @@
+return {
+  install_info = {
+    revision = '568471b80fd8793d37ed01865d8c2208a9fefd1b',
+    url = 'https://github.com/PorterAtGoogle/tree-sitter-textproto',
+  },
+  maintainers = { '@Porter' },
+  tier = 2,
+}

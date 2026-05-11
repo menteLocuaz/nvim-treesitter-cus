@@ -1,0 +1,8 @@
+return {
+  install_info = {
+    revision = '2346a3ab1bb3857b48b29d779a1ef9799a248cd7',
+    url = 'https://github.com/tree-sitter/tree-sitter-go',
+  },
+  maintainers = { '@theHamsta', '@WinWisely268' },
+  tier = 2,
+}

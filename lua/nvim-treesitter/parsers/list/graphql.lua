@@ -1,0 +1,8 @@
+return {
+  install_info = {
+    revision = '5e66e961eee421786bdda8495ed1db045e06b5fe',
+    url = 'https://github.com/bkegley/tree-sitter-graphql',
+  },
+  maintainers = { '@bkegley' },
+  tier = 2,
+}

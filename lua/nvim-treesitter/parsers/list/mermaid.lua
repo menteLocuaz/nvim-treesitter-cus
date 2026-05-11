@@ -1,0 +1,7 @@
+return {
+  install_info = {
+    revision = '90ae195b31933ceb9d079abfa8a3ad0a36fee4cc',
+    url = 'https://github.com/monaqa/tree-sitter-mermaid',
+  },
+  tier = 2,
+}

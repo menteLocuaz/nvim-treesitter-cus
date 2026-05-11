@@ -1,0 +1,8 @@
+return {
+  install_info = {
+    revision = 'a06c2e4415e9bc0346c6b86d401879ffb44058f7',
+    url = 'https://github.com/tree-sitter/tree-sitter-bash',
+  },
+  maintainers = { '@TravonteD' },
+  tier = 2,
+}

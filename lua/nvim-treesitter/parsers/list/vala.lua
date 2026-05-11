@@ -1,0 +1,8 @@
+return {
+  install_info = {
+    revision = '97e6db3c8c73b15a9541a458d8e797a07f588ef4',
+    url = 'https://github.com/vala-lang/tree-sitter-vala',
+  },
+  maintainers = { '@Prince781' },
+  tier = 2,
+}

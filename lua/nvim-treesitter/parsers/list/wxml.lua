@@ -1,0 +1,8 @@
+return {
+  install_info = {
+    revision = '7b821c748dc410332f59496c0dea2632168c4e5a',
+    url = 'https://github.com/BlockLune/tree-sitter-wxml',
+  },
+  maintainers = { '@BlockLune' },
+  tier = 2,
+}
