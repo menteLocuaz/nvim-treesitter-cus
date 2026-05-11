@@ -211,7 +211,7 @@ function M.get_indent(lnum)
     ctx.erow = select(1, node:end_())
 
     for _, rule in ipairs(pipeline) do
-      local ok, result = pcall(rule.apply, rule, ctx)
+      local ok, result = pcall(rule.apply, ctx)
       if not ok then
         -- A rule threw an error. Report it asynchronously (vim.schedule avoids
         -- calling vim.notify from inside indentexpr, which can cause issues),
