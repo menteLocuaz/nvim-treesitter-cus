@@ -27,7 +27,9 @@ local function process(ctx)
 
   local immediate = begin_meta['indent.immediate']
   local same_line = begin_meta['indent.start_at_same_line']
-  local should_indent = (is_multiline or immediate) and (not is_target_line or same_line) and not is_end_line
+  local should_indent = (is_multiline or immediate)
+    and (not is_target_line or same_line)
+    and not is_end_line
 
   if should_indent then
     return { indent = indent + indent_size, kind = KIND.RELATIVE }

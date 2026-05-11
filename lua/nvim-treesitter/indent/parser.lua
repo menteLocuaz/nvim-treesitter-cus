@@ -221,15 +221,7 @@ local function get_indents(bufnr, root, lang, row)
 
   local srow, scol, erow, ecol = root:range()
 
-  local cache_key = lang
-    .. ':'
-    .. srow
-    .. ':'
-    .. scol
-    .. ':'
-    .. erow
-    .. ':'
-    .. ecol
+  local cache_key = lang .. ':' .. srow .. ':' .. scol .. ':' .. erow .. ':' .. ecol
 
   local buf_cache = indents_cache[bufnr]
   if buf_cache then

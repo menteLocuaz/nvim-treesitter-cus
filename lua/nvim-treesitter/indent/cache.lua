@@ -22,6 +22,7 @@ function LineCache.new(bufnr)
   local self = setmetatable({}, { __index = LineCache })
   self.bufnr = bufnr
   self.cache = {}
+  self.tick = vim.api.nvim_buf_get_changedtick(bufnr)
   return self
 end
 
@@ -29,6 +30,12 @@ end
 ---@param lnum integer 1-based line number
 ---@return string
 function LineCache:get(lnum)
+  local tick = vim.api.nvim_buf_get_changedtick(self.bufnr)
+  if self.tick ~= tick then
+    self.cache = {}
+    self.tick = tick
+  end
+
   if not self.cache[lnum] then
     self.cache[lnum] = vim.api.nvim_buf_get_lines(self.bufnr, lnum - 1, lnum, false)[1] or ''
   end
@@ -39,26 +46,49 @@ end
 ---@param lnum integer 1-based line number
 ---@return integer Number of indentation columns
 function LineCache:get_indent(lnum)
-  local _, indentcols = self:get(lnum):find('^%s*')
+  local line = self:get(lnum)
+  local _, indentcols = line:find('^%s*')
   return indentcols or 0
 end
 
----Memoize a function with variadic key generation.
+---Memoize a function with efficient key generation.
 ---@generic T: any[]
 ---@param fn fun(...: T)
 ---@return fun(...: T)
 local function memoize(fn)
   local cache = {}
 
-  return function(...)
-    local args = { ... }
-    local key = table.concat(vim.tbl_map(tostring, args), ':')
+  return function(arg1, arg2, ...)
+    -- Optimized path for 1 or 2 arguments (common in indent logic)
+    if not ... then
+      if not arg2 then
+        if cache[arg1] == nil then
+          local v = fn(arg1)
+          cache[arg1] = v ~= nil and v or vim.NIL
+        end
+        local v = cache[arg1]
+        return v ~= vim.NIL and v or nil
+      end
 
-    if cache[key] == nil then
-      local v = fn(...)
-      cache[key] = v ~= nil and v or vim.NIL
+      local c1 = cache[arg1]
+      if not c1 then
+        c1 = {}
+        cache[arg1] = c1
+      end
+      if c1[arg2] == nil then
+        local v = fn(arg1, arg2)
+        c1[arg2] = v ~= nil and v or vim.NIL
+      end
+      local v = c1[arg2]
+      return v ~= vim.NIL and v or nil
     end
 
+    -- Fallback for 3+ arguments
+    local key = table.concat(vim.tbl_map(tostring, { arg1, arg2, ... }), ':')
+    if cache[key] == nil then
+      local v = fn(arg1, arg2, ...)
+      cache[key] = v ~= nil and v or vim.NIL
+    end
     local v = cache[key]
     return v ~= vim.NIL and v or nil
   end

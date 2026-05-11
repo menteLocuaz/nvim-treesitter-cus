@@ -1,0 +1,8 @@
+return {
+  install_info = {
+    revision = 'a5d04fdb5a69a02b8fa8eb5525a60dfb5309b73b',
+    url = 'https://github.com/tree-sitter-grammars/tree-sitter-bitbake',
+  },
+  maintainers = { '@amaanq' },
+  tier = 2,
+}
