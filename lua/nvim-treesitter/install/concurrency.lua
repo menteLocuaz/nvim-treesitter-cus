@@ -1,18 +1,32 @@
-local a = require('nvim-treesitter.async')
-
 local M = {}
-local installing = {} ---@type table<string,boolean?>
+
+local ConcurrencyState = {}
+ConcurrencyState.__index = ConcurrencyState
+
+function ConcurrencyState.new()
+  return setmetatable({ installing = {} }, ConcurrencyState)
+end
+
+local default = ConcurrencyState.new()
+
+function M.new()
+  return ConcurrencyState.new()
+end
 
 function M.is_installing(lang)
-  return installing[lang] ~= nil
+  return default.installing[lang] ~= nil
 end
 
 function M.lock(lang)
-  installing[lang] = true
+  default.installing[lang] = true
 end
 
 function M.unlock(lang)
-  installing[lang] = nil
+  default.installing[lang] = nil
+end
+
+function M._reset()
+  default = ConcurrencyState.new()
 end
 
 return M

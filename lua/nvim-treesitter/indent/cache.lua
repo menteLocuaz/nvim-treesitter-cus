@@ -114,6 +114,10 @@ function LineCache.invalidate(bufnr)
   global_cache[bufnr] = nil
 end
 
+function LineCache._reset()
+  global_cache = {}
+end
+
 return {
   LineCache = LineCache,
   memoize = memoize,

@@ -210,4 +210,8 @@ function M.clear_cache()
   end
 end
 
+function M._reset()
+  M.clear_cache()
+end
+
 return M

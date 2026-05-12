@@ -18,8 +18,6 @@ local M = {}
 
 local INSTALL_TIMEOUT = 60000
 
-local installing = {} ---@type table<string,boolean?>
-
 local fn = vim.fn
 
 -- Resolves paths relative to the plugin root.
@@ -178,8 +176,16 @@ function M.install_lang(lang, cache_dir, install_dir, force, generate)
     return success
   else
     concurrency.lock(lang)
-    local err = M.try_install_lang(lang, cache_dir, install_dir, generate, logger)
+    -- pcall frame persists across coroutine yields in Lua 5.1, so
+    -- synchronous errors (nil deref, assertion, etc.) are caught here.
+    -- Post-yield errors are handled by the async scheduler's resume guard
+    -- and stored in the Task Future — they do NOT become thrown exceptions.
+    local ok, err = pcall(M.try_install_lang, lang, cache_dir, install_dir, generate, logger)
     concurrency.unlock(lang)
+    if not ok then
+      logger:error('Unexpected error during install: %s', tostring(err))
+      return false
+    end
     return not err
   end
 end

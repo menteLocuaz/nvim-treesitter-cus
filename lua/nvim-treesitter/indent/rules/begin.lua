@@ -6,7 +6,6 @@ local KIND = constants.KIND
 local function process(ctx)
   local node_id = ctx.node_id
   local queries = ctx.queries
-  local node = ctx.node
   local row = ctx.row
   local indent = ctx.indent
   local indent_size = ctx.indent_size
@@ -20,7 +19,7 @@ local function process(ctx)
     return { indent = indent, kind = KIND.SKIP }
   end
 
-  local srow, erow = utils.get_node_range(node)
+  local srow, erow = ctx.srow, ctx.erow
   local is_multiline = srow ~= erow
   local is_target_line = srow == row
   local is_end_line = erow == row

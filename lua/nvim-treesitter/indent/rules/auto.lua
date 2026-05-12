@@ -20,7 +20,6 @@ local KIND = constants.KIND
 local function process(ctx)
   local node_id = ctx.node_id
   local queries = ctx.queries
-  local node = ctx.node
   local row = ctx.row
 
   if
@@ -28,8 +27,8 @@ local function process(ctx)
     and not queries[utils.CAPTURE.ALIGN][node_id] -- Not an alignment node.
     and queries[utils.CAPTURE.AUTO][node_id] -- Explicitly marked @indent.auto.
   then
-    local start_row = select(1, node:start())
-    local end_row = select(1, node:end_())
+    local start_row = ctx.srow
+    local end_row = ctx.erow
 
     -- Target row is a continuation line inside this node (not the opening line).
     if start_row < row and row <= end_row then

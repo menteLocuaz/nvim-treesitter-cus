@@ -37,13 +37,14 @@ vim.api.nvim_create_autocmd({ 'BufUnload', 'BufDelete', 'BufWipeout' }, {
 local IndentContext = {}
 
 --- Creates a new IndentContext for a single get_indent() invocation.
-function IndentContext.new(bufnr, row, indent_size, queries, root, line_cache)
+function IndentContext.new(bufnr, row, indent_size, queries, root, line_cache, any_capture)
   local self = setmetatable({}, { __index = IndentContext })
   self.bufnr = bufnr
   self.row = row
   self.indent = parser.resolve_initial_indent(root)
   self.indent_size = indent_size
   self.queries = queries
+  self.any_capture = any_capture or {}
   self.line_cache = line_cache
   self.processed_rows = {}
   self._root = root
@@ -94,13 +95,17 @@ function M.get_indent(lnum)
     return 0
   end
 
-  local ctx = IndentContext.new(bufnr, row, indent_size, q, root, line_cache)
+  local ctx = IndentContext.new(bufnr, row, indent_size, q, root, line_cache, q.any_capture)
 
   for node in NodeWalker.parents(target_node) do
     ctx.node = node
     ctx.node_id = node:id()
     ctx.srow = select(1, node:start())
     ctx.erow = select(1, node:end_())
+
+    if not ctx.any_capture[ctx.node_id] then
+      goto continue
+    end
 
     for _, rule in ipairs(pipeline) do
       local ok, result = pcall(rule.apply, ctx)
@@ -121,6 +126,7 @@ function M.get_indent(lnum)
         end
       end
     end
+    ::continue::
   end
 
   return ctx.indent

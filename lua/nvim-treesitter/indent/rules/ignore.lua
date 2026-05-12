@@ -56,15 +56,14 @@ local KIND = constants.KIND
 local function process(ctx)
   local node_id = ctx.node_id
   local queries = ctx.queries
-  local node = ctx.node
   local row = ctx.row
 
   local begin_meta = queries[utils.CAPTURE.BEGIN][node_id]
   local ignore_meta = queries[utils.CAPTURE.IGNORE][node_id]
 
   if not begin_meta and ignore_meta then
-    local start_row = select(1, node:start())
-    local end_row = select(1, node:end_())
+    local start_row = ctx.srow
+    local end_row = ctx.erow
 
     -- Strictly inside: both opening and closing lines are excluded.
     -- Compare with @indent.auto which uses row <= end_row (includes closing line).
