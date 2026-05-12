@@ -37,10 +37,14 @@ function M.mkpath(path, logger)
   until path == '.' or path == '/' or path:match('^[./]$') or uv.fs_stat(path)
 
   for _, dir in ipairs(dirs) do
-    local err = uv_mkdir(dir, 493)
-    if err then
-      logger:debug('mkdir failed for %s: %s', dir, err)
-      return err
+    if uv.fs_stat(dir) then
+      logger:trace('%s already exists, skipping', dir)
+    else
+      local err = uv_mkdir(dir, 493)
+      if err then
+        logger:debug('mkdir failed for %s: %s', dir, err)
+        return err
+      end
     end
   end
 end
@@ -65,5 +69,12 @@ function M.rmpath(path, logger)
     return uv_unlink(path)
   end
 end
+
+M.uv_copyfile = uv_copyfile
+M.uv_unlink = uv_unlink
+M.uv_rename = uv_rename
+M.uv_symlink = uv_symlink
+M.uv_mkdir = uv_mkdir
+M.uv_rmdir = uv_rmdir
 
 return M

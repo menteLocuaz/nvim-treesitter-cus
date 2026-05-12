@@ -6,10 +6,6 @@ local system = require('nvim-treesitter.install.system')
 
 local M = {}
 
-local uv_unlink = a.awrap(2, vim.uv.fs_unlink)
-local uv_rename = a.awrap(3, vim.uv.fs_rename)
-local uv_copyfile = a.awrap(4, vim.uv.fs_copyfile)
-
 --- Downloads and extracts a parser tarball from GitHub.
 --- Steps: download -> create tmp dir -> extract -> remove tarball -> move to output.
 ---@async
@@ -68,7 +64,7 @@ function M.do_download(logger, url, project_name, cache_dir, revision, output_di
   end
 
   logger:debug('Removing %s...', tarball_path)
-  err = uv_unlink(tarball_path)
+  err = install_fs.uv_unlink(tarball_path)
   a.schedule()
   if err then
     return logger:error('Could not remove tarball: %s', err)
@@ -78,7 +74,7 @@ function M.do_download(logger, url, project_name, cache_dir, revision, output_di
   local repo_project_name = url:match('[^/]+$')
   local extracted = fs.joinpath(tmp, repo_project_name .. '-' .. dir_rev)
   logger:debug('Moving %s to %s/...', extracted, output_dir)
-  err = uv_rename(extracted, output_dir)
+  err = install_fs.uv_rename(extracted, output_dir)
   a.schedule()
   if err then
     return logger:error('Could not rename temp: %s', err)
