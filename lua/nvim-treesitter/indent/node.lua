@@ -12,13 +12,25 @@ local CAPTURE = utils.CAPTURE
 local CACHE_MISS = {}
 
 -- Weak-keyed cache mapping parent TSNode -> align capture result.
+local function new_align_cache()
+  return setmetatable({}, { __mode = 'k' })
+end
+
 ---@type table<TSNode, table|typeof(CACHE_MISS)>
-local align_cache = setmetatable({}, { __mode = 'k' })
+local align_cache = new_align_cache()
+
+local comment_type_cache = {}
 
 ---@param type_name string
 ---@return boolean
 local function is_comment_type(type_name)
-  return type_name:find('comment', 1, true) ~= nil
+  local cached = comment_type_cache[type_name]
+  if cached ~= nil then
+    return cached
+  end
+  local result = type_name:find('comment', 1, true) ~= nil
+  comment_type_cache[type_name] = result
+  return result
 end
 
 --- Returns the most specific (deepest) Treesitter node that covers the
@@ -57,9 +69,9 @@ end
 --- @param last_pos  integer 1-based index of the last non-blank character.
 --- @param indent    integer Number of leading whitespace characters.
 --- @return TSNode?  The node just before the trailing comment, or nil.
-local function strip_trailing_comment(root, row, line, last_pos, indent)
+local function strip_trailing_comment(root, row, line, last_pos, indent, last_node)
   -- Check the node at the very end of the line's content.
-  local node = get_node(root, row, last_pos - 1)
+  local node = last_node or get_node(root, row, last_pos - 1)
 
   -- If the last token is not a comment, nothing to strip.
   if not node or not is_comment_type(node:type()) then
@@ -128,7 +140,7 @@ local function resolve_blank_line_node(root, line_cache, row, prevlnum, q)
 
   -- Strip trailing comment if present.
   if node and is_comment_type(node:type()) then
-    local stripped = strip_trailing_comment(root, prev_row, line, last_pos, indent)
+    local stripped = strip_trailing_comment(root, prev_row, line, last_pos, indent, node)
     if stripped then
       node = stripped
     end
@@ -203,11 +215,9 @@ function M.resolve_align_from_children(node, q)
   return nil
 end
 
----Clears the align_cache by removing all keys in-place.
+---Clears the align_cache by replacing it with a new weak table.
 function M.clear_cache()
-  for k in pairs(align_cache) do
-    align_cache[k] = nil
-  end
+  align_cache = new_align_cache()
 end
 
 function M._reset()

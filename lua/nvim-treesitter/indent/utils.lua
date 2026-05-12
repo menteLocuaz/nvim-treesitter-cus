@@ -44,10 +44,27 @@ local COMMENT_PARSERS = {
   phpdoc = true, -- PHPDoc inside PHP block comments.
 }
 
----Snapshot of the initial COMMENT_PARSERS table, used by _reset() to restore defaults.
----_reset() restores the module-load baseline — any registrations made via
----register_comment_parser() during setup() WILL be lost.
+--- Snapshot of the initial COMMENT_PARSERS table, used by _reset() to restore defaults.
+--- _reset() restores the module-load baseline — any registrations made via
+--- register_comment_parser() during setup() WILL be lost.
 local COMMENT_PARSERS_DEFAULT = vim.deepcopy(COMMENT_PARSERS)
+
+local NodeWalker = {}
+
+--- Returns an iterator over the ancestors of a node, starting with the node itself.
+--- @param start_node TSNode  The node to start walking from.
+--- @return fun(): TSNode?    An iterator function.
+function NodeWalker.parents(start_node)
+  local current = start_node
+  return function()
+    if not current then
+      return nil
+    end
+    local node = current
+    current = current:parent()
+    return node
+  end
+end
 
 --- Registers an additional language as a comment parser.
 --- Call this from a language-specific config if the language uses an injected
@@ -196,6 +213,7 @@ end
 return {
   CAPTURE = CAPTURE,
   COMMENT_PARSERS = COMMENT_PARSERS,
+  NodeWalker = NodeWalker,
   escape_pattern = escape_pattern,
   is_last_in_line = is_last_in_line,
   find_delimiter = find_delimiter,

@@ -1,0 +1,5 @@
+describe('simple', function()
+  it('works', function()
+    assert.is_true(true)
+  end)
+end)

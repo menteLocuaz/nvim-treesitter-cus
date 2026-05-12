@@ -1,6 +1,7 @@
 local ts = vim.treesitter
 
 local utils = require('nvim-treesitter.indent.utils')
+local util = require('nvim-treesitter.util')
 local CAPTURE = utils.CAPTURE
 
 local CAPTURE_KEYS = {
@@ -24,68 +25,6 @@ local EMPTY_METADATA = setmetatable({}, {
 })
 
 local COMMENT_PARSERS = utils.COMMENT_PARSERS
-
--- CLOCK cache: O(1) amortized eviction, no array shifts.
--- Guarantee: evict() terminates in at most 2 * max iterations.
-local ClockCache = {}
-ClockCache.__index = ClockCache
-
-function ClockCache.new(max_size)
-  return setmetatable({
-    slots = {},
-    index = {},
-    hand = 1,
-    max = max_size,
-    size = 0,
-  }, ClockCache)
-end
-
-function ClockCache:get(key)
-  local idx = self.index[key]
-  if idx then
-    self.slots[idx].ref = true
-    return self.slots[idx].value
-  end
-end
-
-function ClockCache:put(key, value)
-  local idx = self.index[key]
-  if idx then
-    self.slots[idx].value = value
-    self.slots[idx].ref = true
-    return
-  end
-
-  if self.size < self.max then
-    self.size = self.size + 1
-    self.slots[self.size] = { key = key, value = value, ref = true }
-    self.index[key] = self.size
-    return
-  end
-
-  for _ = 1, 2 * self.max do
-    local slot = self.slots[self.hand]
-    if not slot.ref then
-      self.index[slot.key] = nil
-      slot.key = key
-      slot.value = value
-      slot.ref = true
-      self.index[key] = self.hand
-      self.hand = self.hand % self.max + 1
-      return
-    end
-    slot.ref = false
-    self.hand = self.hand % self.max + 1
-  end
-  error('ClockCache: evict invariant violated after 2*max iterations')
-end
-
-function ClockCache:clear()
-  self.slots = {}
-  self.index = {}
-  self.hand = 1
-  self.size = 0
-end
 
 ---Holds all mutable cache state for indent calculations.
 ---Separate from the capture_map_pool (which is an object recycler, not a cache).
@@ -218,7 +157,7 @@ local function get_indents(bufnr, root, lang, row)
 
   local buf_cache = default.clock_caches[bufnr]
   if not buf_cache then
-    buf_cache = ClockCache.new(MAX_CACHE_PER_BUFFER)
+    buf_cache = util.ClockCache.new(MAX_CACHE_PER_BUFFER)
     default.clock_caches[bufnr] = buf_cache
   end
 
