@@ -91,9 +91,19 @@ M.update = a.async(function(languages, options)
   end
   languages = config.norm_languages(languages, { missing = true, unsupported = true })
   local query_src = get_package_path('runtime', 'queries', 'dummy')
-  languages = vim.tbl_filter(function(lang)
-    return info_mod.needs_update(lang, query_src)
-  end, languages) ---@type string[]
+
+  local update_tasks = {}
+  local to_update = {}
+  for _, lang in ipairs(languages) do
+    update_tasks[#update_tasks + 1] = a.async(function()
+      if info_mod.needs_update(lang, query_src) then
+        table.insert(to_update, lang)
+      end
+    end)
+  end
+
+  system.join(options.max_jobs or system.MAX_JOBS, update_tasks)
+  languages = to_update
 
   local summary = options and options.summary
   if #languages > 0 then

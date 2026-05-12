@@ -1,25 +1,57 @@
 local M = {}
 
-local function proxy(mod, fn)
-  return function(...)
-    return require(mod)[fn](...)
-  end
-end
+local function_map = {
+  setup = 'nvim-treesitter.config',
+  get_available = 'nvim-treesitter.config',
+  get_installed = 'nvim-treesitter.config',
+  install = 'nvim-treesitter.install',
+  uninstall = 'nvim-treesitter.install',
+  update = 'nvim-treesitter.install',
+}
 
-M.setup = proxy('nvim-treesitter.config', 'setup')
-M.get_available = proxy('nvim-treesitter.config', 'get_available')
-M.get_installed = proxy('nvim-treesitter.config', 'get_installed')
+local module_cache = {}
 
-M.install = proxy('nvim-treesitter.install', 'install')
-M.uninstall = proxy('nvim-treesitter.install', 'uninstall')
-M.update = proxy('nvim-treesitter.install', 'update')
+setmetatable(M, {
+  __index = function(t, key)
+    local mod_path = function_map[key]
+    if not mod_path then
+      return
+    end
+
+    local mod = module_cache[mod_path]
+    if not mod then
+      mod = require(mod_path)
+      module_cache[mod_path] = mod
+    end
+
+    local fn = mod[key]
+    if fn ~= nil then
+      rawset(t, key, fn)
+    end
+
+    return fn
+  end,
+})
+
+local indent_mod
+local indent_load_failed = false
 
 function M.indentexpr()
-  local ok, indent = pcall(require, 'nvim-treesitter.indent')
-  if not ok then
+  if indent_load_failed then
     return -1
   end
-  return indent.get_indent(vim.v.lnum)
+
+  if not indent_mod then
+    local ok, res = pcall(require, 'nvim-treesitter.indent')
+    if ok and type(res.get_indent) == 'function' then
+      indent_mod = res
+    else
+      indent_load_failed = true
+      return -1
+    end
+  end
+
+  return indent_mod.get_indent(vim.v.lnum)
 end
 
 return M

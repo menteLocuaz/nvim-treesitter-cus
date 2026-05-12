@@ -12,8 +12,10 @@ local cache = require('nvim-treesitter.indent.cache')
 local parser = require('nvim-treesitter.indent.parser')
 local node_mod = require('nvim-treesitter.indent.node')
 local constants = require('nvim-treesitter.indent.constants')
+local IndentContext = require('nvim-treesitter.indent.context')
 
 local COMMENT_PARSERS = utils.COMMENT_PARSERS
+local NodeWalker = utils.NodeWalker
 
 local pipeline = {
   require('nvim-treesitter.indent.rules.auto'),
@@ -33,41 +35,6 @@ vim.api.nvim_create_autocmd({ 'BufUnload', 'BufDelete', 'BufWipeout' }, {
     require('nvim-treesitter.indent.node').clear_cache()
   end,
 })
-
-local IndentContext = {}
-
---- Creates a new IndentContext for a single get_indent() invocation.
-function IndentContext.new(bufnr, row, indent_size, queries, root, line_cache, any_capture)
-  local self = setmetatable({}, { __index = IndentContext })
-  self.bufnr = bufnr
-  self.row = row
-  self.indent = parser.resolve_initial_indent(root)
-  self.indent_size = indent_size
-  self.queries = queries
-  self.any_capture = any_capture or {}
-  self.line_cache = line_cache
-  self.processed_rows = {}
-  self._root = root
-  return self
-end
-
-function IndentContext:add_processed(srow, processed)
-  self.processed_rows[srow] = processed
-end
-
-local NodeWalker = {}
-
-function NodeWalker.parents(start_node)
-  local current = start_node
-  return function()
-    if not current then
-      return nil
-    end
-    local node = current
-    current = current:parent()
-    return node
-  end
-end
 
 function M.get_indent(lnum)
   local bufnr = vim.api.nvim_get_current_buf()
