@@ -2,7 +2,7 @@
 -- Main entry point for Treesitter-based indentation. Implements the
 -- indentexpr-compatible M.get_indent(lnum) function that Neovim calls
 -- whenever it needs to know the correct indentation level for a given line.
-
+--
 local ts = vim.treesitter
 
 local M = {}
