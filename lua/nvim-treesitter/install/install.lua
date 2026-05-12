@@ -16,12 +16,6 @@ local util = require('nvim-treesitter.util')
 
 local M = {}
 
-local uv_copyfile = a.awrap(4, uv.fs_copyfile)
-local uv_unlink = a.awrap(2, uv.fs_unlink)
-local uv_rename = a.awrap(3, uv.fs_rename)
-local uv_symlink = a.awrap(4, uv.fs_symlink)
-local uv_mkdir = a.awrap(3, uv.fs_mkdir)
-
 local INSTALL_TIMEOUT = 60000
 
 local installing = {} ---@type table<string,boolean?>
@@ -46,7 +40,7 @@ function M.uninstall_lang(logger, lang, parser, queries)
 
   if fn.filereadable(parser) == 1 then
     logger:debug('Unlinking ' .. parser)
-    local perr = uv_unlink(parser)
+    local perr = install_fs.uv_unlink(parser)
     a.schedule()
     if perr then
       return logger:error(perr)
@@ -58,7 +52,7 @@ function M.uninstall_lang(logger, lang, parser, queries)
     logger:debug('Unlinking ' .. queries)
     local qerr ---@type string?
     if stat.type == 'link' then
-      qerr = uv_unlink(queries)
+      qerr = install_fs.uv_unlink(queries)
     else
       qerr = install_fs.rmpath(queries, logger)
     end
