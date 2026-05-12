@@ -44,6 +44,11 @@ local COMMENT_PARSERS = {
   phpdoc = true, -- PHPDoc inside PHP block comments.
 }
 
+---Snapshot of the initial COMMENT_PARSERS table, used by _reset() to restore defaults.
+---_reset() restores the module-load baseline — any registrations made via
+---register_comment_parser() during setup() WILL be lost.
+local COMMENT_PARSERS_DEFAULT = vim.deepcopy(COMMENT_PARSERS)
+
 --- Registers an additional language as a comment parser.
 --- Call this from a language-specific config if the language uses an injected
 --- comment parser not in the default COMMENT_PARSERS set.
@@ -183,6 +188,11 @@ local function clear_error_cache()
   error_ancestor_cache = {}
 end
 
+local function reset()
+  COMMENT_PARSERS = vim.deepcopy(COMMENT_PARSERS_DEFAULT)
+  error_ancestor_cache = {}
+end
+
 return {
   CAPTURE = CAPTURE,
   COMMENT_PARSERS = COMMENT_PARSERS,
@@ -194,4 +204,5 @@ return {
   has_error_ancestor = has_error_ancestor,
   register_comment_parser = register_comment_parser,
   clear_error_cache = clear_error_cache,
+  _reset = reset,
 }

@@ -12,13 +12,14 @@ local pcall = copcall or pcall
 local Scheduler = {}
 Scheduler.__index = Scheduler
 
--- FIFO queue of pending callback functions to execute.
-local queue = {}
+--- Creates a new scheduler state with an empty queue.
+--- @return table  { queue: function[], is_running: boolean }
+function Scheduler.new()
+  return { queue = {}, is_running = false }
+end
 
--- Guards against re-entrant execution. When true, the drain loop is already
--- running and new enqueues will simply append to the queue rather than
--- starting a second loop.
-local is_running = false
+-- Default singleton scheduler state. Replaced by _reset() for test isolation.
+local default = Scheduler.new()
 
 --- Enqueues a function to be executed by the scheduler.
 --- If the scheduler is not already running, starts the drain loop immediately,
@@ -45,24 +46,24 @@ local is_running = false
 ---   -- Output: "outer", then "inner"
 ---
 --- Boundary cases:
----   - If `fn` raises an error, it is reported but does NOT stop subsequent callbacks.
+---   - If `fn` raises an error, it is caught but does NOT stop subsequent callbacks.
 ---   - Re-entrant calls are safe; no recursion occurs.
 ---   - The queue is fully drained before is_running is reset to false.
 function Scheduler.enqueue(fn)
-  table.insert(queue, fn)
+  table.insert(default.queue, fn)
 
   -- If already draining, let the active loop pick up the new entry.
-  if is_running then
+  if default.is_running then
     return
   end
 
   -- Claim the drain loop.
-  is_running = true
+  default.is_running = true
 
   -- Process all queued functions in order. New entries added during execution
-  -- are appended to `queue` and caught by subsequent iterations of this loop.
-  while #queue > 0 do
-    local next_fn = table.remove(queue, 1)
+  -- are appended to `default.queue` and caught by subsequent iterations of this loop.
+  while #default.queue > 0 do
+    local next_fn = table.remove(default.queue, 1)
     local ok, err = pcall(next_fn)
     if not ok then
       -- Report errors without halting the scheduler.
@@ -71,7 +72,13 @@ function Scheduler.enqueue(fn)
   end
 
   -- Release the lock so future enqueues can start a new drain loop.
-  is_running = false
+  default.is_running = false
+end
+
+--- Resets the scheduler state for test isolation.
+--- The old queue is NOT drained — callers must ensure it is idle before resetting.
+function Scheduler._reset()
+  default = Scheduler.new()
 end
 
 return Scheduler

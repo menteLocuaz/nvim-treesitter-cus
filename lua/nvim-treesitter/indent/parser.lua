@@ -14,7 +14,7 @@ local CAPTURE_KEYS = {
   CAPTURE.ZERO,
 }
 
-local MAX_POOL_SIZE = 64
+local MAX_CACHE_PER_BUFFER = 32
 
 local EMPTY_METADATA = setmetatable({}, {
   __newindex = function()
@@ -23,6 +23,93 @@ local EMPTY_METADATA = setmetatable({}, {
   __metatable = false,
 })
 
+local COMMENT_PARSERS = utils.COMMENT_PARSERS
+
+-- CLOCK cache: O(1) amortized eviction, no array shifts.
+-- Guarantee: evict() terminates in at most 2 * max iterations.
+local ClockCache = {}
+ClockCache.__index = ClockCache
+
+function ClockCache.new(max_size)
+  return setmetatable({
+    slots = {},
+    index = {},
+    hand = 1,
+    max = max_size,
+    size = 0,
+  }, ClockCache)
+end
+
+function ClockCache:get(key)
+  local idx = self.index[key]
+  if idx then
+    self.slots[idx].ref = true
+    return self.slots[idx].value
+  end
+end
+
+function ClockCache:put(key, value)
+  local idx = self.index[key]
+  if idx then
+    self.slots[idx].value = value
+    self.slots[idx].ref = true
+    return
+  end
+
+  if self.size < self.max then
+    self.size = self.size + 1
+    self.slots[self.size] = { key = key, value = value, ref = true }
+    self.index[key] = self.size
+    return
+  end
+
+  for _ = 1, 2 * self.max do
+    local slot = self.slots[self.hand]
+    if not slot.ref then
+      self.index[slot.key] = nil
+      slot.key = key
+      slot.value = value
+      slot.ref = true
+      self.index[key] = self.hand
+      self.hand = self.hand % self.max + 1
+      return
+    end
+    slot.ref = false
+    self.hand = self.hand % self.max + 1
+  end
+  error('ClockCache: evict invariant violated after 2*max iterations')
+end
+
+function ClockCache:clear()
+  self.slots = {}
+  self.index = {}
+  self.hand = 1
+  self.size = 0
+end
+
+---Holds all mutable cache state for indent calculations.
+---Separate from the capture_map_pool (which is an object recycler, not a cache).
+local CacheState = {}
+CacheState.__index = CacheState
+
+function CacheState.new()
+  return setmetatable({
+    clock_caches = {}, ---@type table<integer, ClockCache>
+    changedtick_cache = {}, ---@type table<integer, integer>
+    valid_captures_cache = {}, ---@type table<string, table<integer, string>>
+    any_capture_cache = {}, ---@type table<string, table<integer, true>>
+  }, CacheState)
+end
+
+local default = CacheState.new()
+
+local M = {}
+
+---@return CacheState
+function M.new()
+  return CacheState.new()
+end
+
 local function new_capture_map()
   local map = {}
   for i = 1, #CAPTURE_KEYS do
@@ -30,69 +117,6 @@ local function new_capture_map()
   end
   return map
 end
-
-local capture_map_pool = {}
-
-local function clear_capture_map(map)
-  for i = 1, #CAPTURE_KEYS do
-    local bucket = map[CAPTURE_KEYS[i]]
-    if bucket then
-      for k in pairs(bucket) do
-        bucket[k] = nil
-      end
-    end
-  end
-end
-
-local function acquire_capture_map()
-  local pool = capture_map_pool
-  local n = #pool
-  if n > 0 then
-    local map = pool[n]
-    pool[n] = nil
-    return map
-  end
-  return new_capture_map()
-end
-
-local function release_capture_map(map)
-  if map and #capture_map_pool < MAX_POOL_SIZE then
-    clear_capture_map(map)
-    capture_map_pool[#capture_map_pool + 1] = map
-  end
-end
-
-local function release_buffer_cache(buf_cache)
-  if not buf_cache then
-    return
-  end
-  for _, map in pairs(buf_cache) do
-    release_capture_map(map)
-  end
-end
-
-local VIEWPORT_PADDING = 200
-
-local COMMENT_PARSERS = utils.COMMENT_PARSERS
-
----Cache keyed by bufnr, then by cache_key (lang + root range).
----@type table<integer, table<string, table>>
-local indents_cache = {}
-
----LRU tracking for cache eviction.
----MAX_CACHE_PER_BUFFER is small (32), so O(N) operations are acceptable.
----@type table<integer, { order: string[], index: table<string, integer> }>
-local lru_tracker = {}
-
----Tracks changedtick per buffer to detect modifications.
----@type table<integer, integer>
-local changedtick_cache = {}
-
-local MAX_CACHE_PER_BUFFER = 32
-
----Precomputed valid captures per query.
----@type table<string, table<integer, string>>
-local valid_captures_cache = {}
 
 ---@param parser vim.treesitter.LanguageTree
 ---@param row integer
@@ -153,60 +177,29 @@ end
 
 local function get_valid_captures(lang, query)
   local cache_key = lang .. ':' .. tostring(query)
-  local cached = valid_captures_cache[cache_key]
+  local cached = default.valid_captures_cache[cache_key]
   if cached then
     return cached
   end
   local valid = build_valid_captures(query)
-  valid_captures_cache[cache_key] = valid
+  default.valid_captures_cache[cache_key] = valid
   return valid
-end
-
-local function touch_lru(bufnr, cache_key)
-  local tracker = lru_tracker[bufnr]
-  if not tracker then
-    tracker = { order = {}, index = {} }
-    lru_tracker[bufnr] = tracker
-  end
-
-  local idx = tracker.index[cache_key]
-  if idx then
-    table.remove(tracker.order, idx)
-    for i = idx, #tracker.order do
-      tracker.index[tracker.order[i]] = i
-    end
-  end
-
-  tracker.order[#tracker.order + 1] = cache_key
-  tracker.index[cache_key] = #tracker.order
-end
-
----Evict oldest entry if cache exceeds MAX_CACHE_PER_BUFFER.
-local function evict_if_needed(bufnr, buf_cache)
-  local tracker = lru_tracker[bufnr]
-  if tracker and #tracker.order >= MAX_CACHE_PER_BUFFER then
-    local oldest = table.remove(tracker.order, 1)
-    tracker.index[oldest] = nil
-    -- Update indices for all shifted elements
-    for i = 1, #tracker.order do
-      tracker.index[tracker.order[i]] = i
-    end
-
-    local old_map = buf_cache[oldest]
-    if old_map then
-      release_capture_map(old_map)
-      buf_cache[oldest] = nil
-    end
-  end
 end
 
 local function clear_if_stale(bufnr)
   local tick = vim.b[bufnr].changedtick
-  if changedtick_cache[bufnr] ~= tick then
-    changedtick_cache[bufnr] = tick
-    release_buffer_cache(indents_cache[bufnr])
-    indents_cache[bufnr] = nil
-    lru_tracker[bufnr] = nil
+  if default.changedtick_cache[bufnr] ~= tick then
+    default.changedtick_cache[bufnr] = tick
+    local cc = default.clock_caches[bufnr]
+    if cc then
+      cc:clear()
+    end
+    local prefix = tostring(bufnr) .. ':'
+    for k in pairs(default.any_capture_cache) do
+      if k:sub(1, #prefix) == prefix then
+        default.any_capture_cache[k] = nil
+      end
+    end
   end
 end
 
@@ -223,33 +216,27 @@ local function get_indents(bufnr, root, lang, row)
 
   local cache_key = lang .. ':' .. srow .. ':' .. scol .. ':' .. erow .. ':' .. ecol
 
-  local buf_cache = indents_cache[bufnr]
-  if buf_cache then
-    local cached = buf_cache[cache_key]
-    if cached then
-      touch_lru(bufnr, cache_key)
-      return cached
-    end
-  else
-    buf_cache = {}
-    indents_cache[bufnr] = buf_cache
+  local buf_cache = default.clock_caches[bufnr]
+  if not buf_cache then
+    buf_cache = ClockCache.new(MAX_CACHE_PER_BUFFER)
+    default.clock_caches[bufnr] = buf_cache
   end
 
-  evict_if_needed(bufnr, buf_cache)
+  local cached = buf_cache:get(cache_key)
+  if cached then
+    return cached
+  end
 
-  local map = acquire_capture_map()
+  local map = new_capture_map()
 
   local query = ts.query.get(lang, 'indents')
   if not query then
-    buf_cache[cache_key] = map
-    touch_lru(bufnr, cache_key)
+    buf_cache:put(cache_key, map)
     return map
   end
 
   local valid_captures = get_valid_captures(lang, query)
 
-  -- Use the full range of the resolved root to ensure all relevant ancestors
-  -- are captured, even if they start far outside the current viewport.
   for id, node, metadata in query:iter_captures(root, bufnr, srow, erow) do
     local capture = valid_captures[id]
     if capture then
@@ -260,31 +247,49 @@ local function get_indents(bufnr, root, lang, row)
     end
   end
 
-  buf_cache[cache_key] = map
-  touch_lru(bufnr, cache_key)
+  -- Build any_capture set keyed by (bufnr .. ':' .. lang).
+  local ac_key = bufnr .. ':' .. lang
+  if not default.any_capture_cache[ac_key] then
+    local ac = {}
+    for _, bucket in pairs(map) do
+      for node_id in pairs(bucket) do
+        ac[node_id] = true
+      end
+    end
+    default.any_capture_cache[ac_key] = ac
+  end
+  map.any_capture = default.any_capture_cache[ac_key]
+
+  buf_cache:put(cache_key, map)
   return map
 end
 
-local M = {
-  resolve_root = resolve_root,
-  resolve_initial_indent = resolve_initial_indent,
-  get_indents = get_indents,
-}
+M.resolve_root = resolve_root
+M.resolve_initial_indent = resolve_initial_indent
+M.get_indents = get_indents
 
 function M.clear_cache(bufnr)
   if bufnr then
-    release_buffer_cache(indents_cache[bufnr])
-    indents_cache[bufnr] = nil
-    changedtick_cache[bufnr] = nil
-    lru_tracker[bufnr] = nil
-  else
-    for _, buf_cache in pairs(indents_cache) do
-      release_buffer_cache(buf_cache)
+    local cc = default.clock_caches[bufnr]
+    if cc then
+      cc:clear()
     end
-    indents_cache = {}
-    changedtick_cache = {}
-    lru_tracker = {}
+    default.changedtick_cache[bufnr] = nil
+    local prefix = tostring(bufnr) .. ':'
+    for k in pairs(default.any_capture_cache) do
+      if k:sub(1, #prefix) == prefix then
+        default.any_capture_cache[k] = nil
+      end
+    end
+  else
+    default.clock_caches = {}
+    default.changedtick_cache = {}
+    default.any_capture_cache = {}
   end
+end
+
+function M._reset()
+  default = CacheState.new()
 end
 
 return M

@@ -39,6 +39,8 @@ local function get_package_path(...)
   return fs.joinpath(fn.fnamemodify(info.source:sub(2), ':p:h:h:h'), ...)
 end
 
+M.get_package_path = get_package_path
+
 ---@async
 ---@param languages string[]
 ---@param options? InstallOptions

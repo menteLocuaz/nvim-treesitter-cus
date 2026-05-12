@@ -148,4 +148,51 @@ describe('install fs module', function()
       assert.is_string(err)
     end)
   end)
+
+  describe('config.get_install_dir', function()
+    local config = require('nvim-treesitter.config')
+    local test_dirs = {}
+
+    after_each(function()
+      for _, d in ipairs(test_dirs) do
+        if vim.uv.fs_stat(d) then
+          vim.fn.delete(d, 'rf')
+        end
+      end
+      test_dirs = {}
+    end)
+
+    it('returns a path ending with the subdirectory name', function()
+      local p = config.get_install_dir('test-sub')
+      table.insert(test_dirs, p)
+      assert.is_equal('test-sub', vim.fn.fnamemodify(p, ':t'))
+    end)
+
+    it('creates the directory on disk', function()
+      local p = config.get_install_dir('test-sub')
+      table.insert(test_dirs, p)
+      assert.is_not_nil(vim.uv.fs_stat(p))
+    end)
+
+    it('is idempotent (no error on repeated call)', function()
+      local p1 = config.get_install_dir('test-sub')
+      table.insert(test_dirs, p1)
+      local p2 = config.get_install_dir('test-sub')
+      assert.is_equal(p1, p2)
+    end)
+  end)
+
+  describe('install.get_package_path', function()
+    local install = require('nvim-treesitter.install')
+
+    it('returns an absolute path', function()
+      local p = install.get_package_path('runtime', 'queries')
+      assert.is_equal(1, vim.fn.isabsolutepath(p))
+    end)
+
+    it('joins path segments correctly', function()
+      local p = install.get_package_path('a', 'b', 'c')
+      assert.is_true(p:match('a/b/c$') ~= nil)
+    end)
+  end)
 end)

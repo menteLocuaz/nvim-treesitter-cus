@@ -18,15 +18,17 @@ local M = {}
 
 local INSTALL_TIMEOUT = 60000
 
-local installing = {} ---@type table<string,boolean?>
-
 local fn = vim.fn
 
+-- Resolves paths relative to the plugin root.
+-- Shim that delegates to `require('nvim-treesitter.install').get_package_path`.
+-- T he `require` statement is lazy (call-timed) to avoid circular dependencies with `install/init.lua`.
+---`debug.getinfo(1)` within the canonical function always
+---`resolves `install/init.lua`, so the path resolution is identical.s
 ---@param ... string
 ---@return string
 local function get_package_path(...)
-  local dbg = assert(debug.getinfo(1, 'S'))
-  return fs.joinpath(fn.fnamemodify(dbg.source:sub(2), ':p:h:h:h'), ...)
+  return require('nvim-treesitter.install').get_package_path(...)
 end
 
 ---@async
@@ -174,8 +176,16 @@ function M.install_lang(lang, cache_dir, install_dir, force, generate)
     return success
   else
     concurrency.lock(lang)
-    local err = M.try_install_lang(lang, cache_dir, install_dir, generate, logger)
+    -- pcall frame persists across coroutine yields in Lua 5.1, so
+    -- synchronous errors (nil deref, assertion, etc.) are caught here.
+    -- Post-yield errors are handled by the async scheduler's resume guard
+    -- and stored in the Task Future — they do NOT become thrown exceptions.
+    local ok, err = pcall(M.try_install_lang, lang, cache_dir, install_dir, generate, logger)
     concurrency.unlock(lang)
+    if not ok then
+      logger:error('Unexpected error during install: %s', tostring(err))
+      return false
+    end
     return not err
   end
 end
