@@ -22,11 +22,15 @@ local installing = {} ---@type table<string,boolean?>
 
 local fn = vim.fn
 
+-- Resolves paths relative to the plugin root.
+-- Shim that delegates to `require('nvim-treesitter.install').get_package_path`.
+-- T he `require` statement is lazy (call-timed) to avoid circular dependencies with `install/init.lua`.
+---`debug.getinfo(1)` within the canonical function always
+---`resolves `install/init.lua`, so the path resolution is identical.s
 ---@param ... string
 ---@return string
 local function get_package_path(...)
-  local dbg = assert(debug.getinfo(1, 'S'))
-  return fs.joinpath(fn.fnamemodify(dbg.source:sub(2), ':p:h:h:h'), ...)
+  return require('nvim-treesitter.install').get_package_path(...)
 end
 
 ---@async
