@@ -2,37 +2,59 @@
   <img src="https://github.com/nvim-treesitter/nvim-treesitter/assets/2361214/0513b223-c902-4f12-92ee-8ac4d8d6f41f" alt="nvim-treesitter">
 </h1>
 
-The `nvim-treesitter` plugin provides
-1. functions for installing, updating, and removing [**tree-sitter parsers**](SUPPORTED_LANGUAGES.md);
-2. a collection of **queries** for enabling tree-sitter features built into Neovim for these languages;
-3. a staging ground for [treesitter-based features](#Supported-features) considered for upstreaming to Neovim.
+A plugin that installs tree-sitter parsers and provides queries for Neovim's
+built-in tree-sitter features.
 
-For details on these and how to help improving them, see [CONTRIBUTING.md](./CONTRIBUTING.md).
+> [!CAUTION]
+> This is a full, incompatible, rewrite: Treat this as a different plugin you
+> need to set up from scratch following the instructions below. If you can't
+> or don't want to update, specify the
+> [`master` branch](https://github.com/nvim-treesitter/nvim-treesitter/blob/master/README.md)
+> (which is locked but will remain available for backward compatibility with
+> Nvim 0.11).
 
->[!CAUTION]
-> This is a full, incompatible, rewrite: Treat this as a different plugin you need to set up from scratch following the instructions below. If you can't or don't want to update, specify the [`master` branch](https://github.com/nvim-treesitter/nvim-treesitter/blob/master/README.md) (which is locked but will remain available for backward compatibility with Nvim 0.11).
+---
 
-# Quickstart
+## What is nvim-treesitter?
 
-## Requirements
+Neovim has built-in tree-sitter support (`vim.treesitter`) — it can parse
+buffers and apply queries for highlighting, folding, and more. But Neovim
+does not ship parsers or query files for any language.
 
-- Neovim 0.12.0 or later (nightly)
-- `tar` and `curl` in your path
-- [`tree-sitter-cli`](https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli/README.md) (0.26.1 or later, installed via your package manager, **not npm**)
-- a C compiler in your path (see <https://docs.rs/cc/latest/cc/#compile-time-requirements>)
+nvim-treesitter fills that gap by:
 
->[!IMPORTANT]
-> The current **support policy** for Neovim is
-> * the _latest_ [stable release](https://github.com/neovim/neovim/releases/tag/stable),
-> * the _latest_ [nightly prerelease](https://github.com/neovim/neovim/releases/tag/nightly).
-> Other versions may work but are neither tested nor considered for fixes.
+- maintaining a registry of parser sources with pinned revisions
+- downloading and compiling parsers on demand
+- shipping query files (highlighting, folds, indentation, injections) for
+  each supported language
+- providing commands to install, update, and remove everything
 
-## Installation
+See [SUPPORTED_LANGUAGES.md](SUPPORTED_LANGUAGES.md) for the full language
+list.
 
-You can install `nvim-treesitter` with your favorite package manager (or using the native `package` feature of vim, see `:h packages`).
+---
 
-This plugin is only guaranteed to work with **specific versions of language parsers** (as specified in the `parsers.lua` table). **When upgrading the plugin, you must make sure that all installed parsers are updated to the latest version** via `:TSUpdate`.
-It is strongly recommended to automate this; e.g., using the following spec with [lazy.nvim](https://github.com/folke/lazy.nvim):
+## Getting started
+
+### Requirements
+
+- Neovim **0.12.0 or later** (nightly)
+- `tar` and `curl` in your PATH
+- [`tree-sitter-cli`](https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli/README.md)
+  **0.26.1 or later** (installed via your package manager, **not npm**)
+- a C compiler in your PATH
+  (see <https://docs.rs/cc/latest/cc/#compile-time-requirements>)
+
+> [!IMPORTANT]
+> Support policy: the latest Neovim
+> [stable release](https://github.com/neovim/neovim/releases/tag/stable) and
+> the latest [nightly](https://github.com/neovim/neovim/releases/tag/nightly).
+> Other versions may work but are not tested.
+
+### 1. Install the plugin
+
+Add nvim-treesitter to your plugin manager. Example with
+[lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
@@ -42,201 +64,155 @@ It is strongly recommended to automate this; e.g., using the following spec with
 }
 ```
 
->[!IMPORTANT]
+> [!IMPORTANT]
 > This plugin does not support lazy-loading.
 
-## Setup
+When you upgrade the plugin, always run `:TSUpdate` afterwards to keep
+parsers in sync.
 
-`nvim-treesitter` can be configured by calling `setup`. **You do not need to call `setup` for `nvim-treesitter` to work using default values.**
+### 2. Call setup (optional)
+
+You only need `setup` if you want a non-default install directory:
 
 ```lua
 require('nvim-treesitter').setup {
-  -- Directory to install parsers and queries to (prepended to `runtimepath` to have priority)
   install_dir = vim.fn.stdpath('data') .. '/site'
 }
 ```
 
-Parsers and queries can then be installed with
+With no arguments the defaults are fine.
+
+### 3. Install parsers for your languages
 
 ```lua
 require('nvim-treesitter').install { 'rust', 'javascript', 'zig' }
 ```
 
-(This is a no-op if the parsers are already installed.) Note that this function runs asynchronously; for synchronous installation in a script context ("bootstrapping"), you need to `wait()` for it to finish:
+Or from the command line:
 
-```lua
-require('nvim-treesitter').install({ 'rust', 'javascript', 'zig' }):wait(300000) -- wait max. 5 minutes
+```
+:TSInstall rust javascript zig
 ```
 
-Check [`:h nvim-treesitter-commands`](doc/nvim-treesitter.txt) for a list of all available commands.
+This downloads, compiles, and installs each parser. It is a no-op if a
+parser is already installed. Append `!` to force a reinstall (`:TSInstall!`).
 
-# Supported languages
+Installation runs asynchronously. To wait for completion (e.g. in a
+bootstrap script):
 
-For `nvim-treesitter` to support a specific feature for a specific language requires both a parser for that language and an appropriate language-specific query file for that feature.
+```lua
+require('nvim-treesitter').install({ 'rust', 'javascript', 'zig' })
+                          :wait(300000) -- max 5 minutes
+```
 
-A list of the currently supported languages can be found [on this page](SUPPORTED_LANGUAGES.md). If you wish to add a new language or improve the queries for an existing one, please see our [contributing guide](CONTRIBUTING.md).
+### 4. Verify
 
-# Supported features
+```
+:checkhealth nvim-treesitter
+```
 
-`nvim-treesitter` provides queries for the following features. **These are not automatically enabled.**
+---
 
-## Highlighting
+## How to enable features
 
-Treesitter highlighting is provided by Neovim, see `:h treesitter-highlight`. To enable it for a filetype, put `vim.treesitter.start()` in a `ftplugin/<filetype>.lua` in your config directory, or place the following in your `init.lua`:
+Features are **not enabled automatically**. You must opt in per file type.
+
+### Highlighting
 
 ```lua
 vim.api.nvim_create_autocmd('FileType', {
-  pattern = { '<filetype>' },
+  pattern = { 'rust', 'javascript', 'zig' },
   callback = function() vim.treesitter.start() end,
 })
 ```
 
-## Folds
+See `:h treesitter-highlight`.
 
-Treesitter-based folding is provided by Neovim. To enable it, put the following in your `ftplugin` or `FileType` autocommand:
-
-```lua
-vim.wo.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
-vim.wo.foldmethod = 'expr'
-```
-
-## Indentation
-
-Treesitter-based indentation is provided by this plugin but considered **experimental**. To enable it, put the following in your `ftplugin` or `FileType` autocommand:
+### Folds
 
 ```lua
-vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'rust', 'javascript', 'zig' },
+  callback = function()
+    vim.wo.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
+    vim.wo.foldmethod = 'expr'
+  end,
+})
 ```
 
-(Note the specific quotes used.)
+### Indentation (experimental)
 
-### How it works
-
-The indent module walks the syntax tree starting from the node at the cursor position, applying rules defined in query files (`runtime/queries/<lang>/indents.scm`). The pipeline processes captures in order:
-
-1. **Resolve target node** - Determine which Treesitter node to start from
-2. **Walk ancestors** - Traverse parent nodes applying indent rules
-3. **Compute final indent** - Based on captures and context
-
-### Query Captures
-
-Define these captures in your language's `indents.scm`:
-
-| Capture | Description | Example |
-|---------|-------------|---------|
-| `@indent.begin` | Node starts an indent block | `function`, `if`, `for` |
-| `@indent.end` | Node ends an indent block | `end`, `}`, `)` |
-| `@indent.align` | Alignment target for children | `(` in function calls |
-| `@indent.zero` | Force indent to column 0 | Top-level declarations |
-| `@indent.auto` | Auto-indent based on syntax | Continuation lines |
-| `@indent.branch` | Branch indicator | `else`, `catch`, `|` |
-| `@indent.dedent` | Force dedent after node | `break`, `return` |
-| `@indent.ignore` | Skip indent calculation | Comments, strings |
-
-### Example Query File
-
-```scheme
-; lua/indents.scm
-; inherits: _lang
-
-[
-  (function_declaration)
-  (if_statement)
-  (for_statement)
-  (while_statement)
-  (do_block)
-] @indent.begin
-
-[
-  (end_clause)
-  (else_clause)
-  (elseif_clause)
-] @indent.branch
-
-"end" @indent.end
-
-(comment) @indent.ignore
+```lua
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'rust', 'javascript', 'zig' },
+  callback = function()
+    vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+  end,
+})
 ```
 
-### Creating Custom Indent Queries
+For details on writing custom indent queries, see
+[docs/indent-node.md](docs/indent-node.md).
 
-1. Create or edit `runtime/queries/<lang>/indents.scm`
-2. Define captures for your language's syntax constructs
-3. Test with `:TSInstall <lang>` and verify indentation behavior
+### Injections
 
-For more details, see [docs/indent-node.md](docs/indent-node.md).
+No setup required. Tree-sitter handles multi-language files (e.g. JavaScript
+inside HTML) automatically. See `:h treesitter-language-injections`.
 
-## Injections
+---
 
-Injections are used for multi-language documents, see `:h treesitter-language-injections`. No setup is needed.
+## Advanced: adding custom languages
 
-## Locals
-
-These queries can be used to look up definitions and references to identifiers in a given scope. They are not used in this plugin and are provided for (limited) backward compatibility.
-
-# Advanced setup
-
-## Adding custom languages
-
-If you have a parser that is not on the list of supported languages (either as a repository on Github or in a local directory), you can add it manually for use by `nvim-treesitter` as follows:
-
-1. Add the following snippet in a `User TSUpdate` autocommand:
+If your language's parser is not in the
+[supported list](SUPPORTED_LANGUAGES.md), you can register it manually inside
+a `User TSUpdate` autocommand:
 
 ```lua
 vim.api.nvim_create_autocmd('User', { pattern = 'TSUpdate',
 callback = function()
   require('nvim-treesitter.parsers').zimbu = {
     install_info = {
-      url = 'https://github.com/zimbulang/tree-sitter-zimbu', -- git repo; use `path` for local path
-      revision = '<sha>', -- tag or commit hash; HEAD if missing
-      -- optional entries:
-      branch = 'develop', -- only needed if different from default branch
-      location = 'parser', -- only needed if the parser is in subdirectory of a "monorepo"
-      generate = true, -- only needed if repo does not contain pre-generated src/parser.c
-      generate_from_json = false, -- only needed if repo does not contain src/grammar.json either
-      queries = 'queries/neovim', -- also install queries from given directory
+      url = 'https://github.com/zimbulang/tree-sitter-zimbu',
+      revision = '<sha>',
+      -- optional fields:
+      branch = 'develop',
+      location = 'parser',
+      generate = true,
+      generate_from_json = false,
+      queries = 'queries/neovim',
     },
-    maintainers = { '@me' }, -- the query maintainers
-    tier = 2, -- 1: stable, 2: unstable, 3: unmaintained, 4: unsupported
-    -- optional entries:
-    requires = { 'vim' }, -- if the queries inherit from another language
-    readme_note = "an example language",
+    maintainers = { '@me' },
+    tier = 2,
   }
 end})
 ```
 
-Alternatively, if you have a local checkout, you can instead use
+For a local checkout, use `path` instead of `url`:
 
 ```lua
     install_info = {
       path = '~/parsers/tree-sitter-zimbu',
-      -- optional entries
       location = 'parser',
       generate = true,
-      generate_from_json = false,
-      queries = 'queries/neovim', -- symlink queries from given directory
+      ...
     },
-    maintainers = { '@me' },
-    tier = 2,
 ```
-This will always use the state of the directory as-is (i.e., `branch` and `revision` will be ignored).
 
-2. If the parser name differs from the filetype(s) used by Neovim, you need to register the parser via
+Then register the parser name if it differs from the filetype:
 
 ```lua
 vim.treesitter.language.register('zimbu', { 'zu' })
 ```
 
-If Neovim does not detect your language's filetype by default, you can use [Neovim's `vim.filetype.add()`](<https://neovim.io/doc/user/lua.html#vim.filetype.add()>) to add a custom detection rule.
+Finally, run `:TSInstall zimbu`.
 
-3. Start `nvim` and `:TSInstall zimbu`.
+> [!IMPORTANT]
+> If the parser requires an external scanner, it must be written in C.
 
->[!IMPORTANT]
-> If the parser requires an external scanner, this must be written in C.
+### Modifying an existing parser's settings
 
-### Modifying parsers
-
-You can use the same approach for overriding parser information. E.g., if you always want to generate the `lua` parser from grammar, add
+To always generate the `lua` parser from grammar instead of using its
+pre-built `parser.c`:
 
 ```lua
 vim.api.nvim_create_autocmd('User', { pattern = 'TSUpdate',
@@ -245,6 +221,20 @@ callback = function()
 end})
 ```
 
-## Adding queries
+### Adding custom queries
 
-Queries can be placed anywhere in your `runtimepath` under `queries/<language>`, with earlier directories taking precedence unless the queries are marked with `; extends`; see [`:h treesitter-query-modelines`](https://neovim.io/doc/user/treesitter.html#treesitter-query-modeline).
+Place your query files under `queries/<language>/` anywhere in your
+`runtimepath`. Earlier directories take precedence unless the query file
+begins with `; extends`. See
+[`:h treesitter-query-modelines`](https://neovim.io/doc/user/treesitter.html#treesitter-query-modeline).
+
+---
+
+## Reference
+
+- [`:h nvim-treesitter-commands`](doc/nvim-treesitter.txt) — full command
+  and API reference
+- [SUPPORTED_LANGUAGES.md](SUPPORTED_LANGUAGES.md) — language support table
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — how to add languages or improve
+  queries
+- [docs/indent-node.md](docs/indent-node.md) — indent query internals
