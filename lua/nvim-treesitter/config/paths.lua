@@ -18,7 +18,7 @@ function M.get_installed(filter)
   end
 
   if not (filter and filter == 'queries') then
-    local parsers_dir = config.get_install_dir('parsers')
+    local parsers_dir = config.get_install_dir('parser')
     for f in vim.fs.dir(parsers_dir) do
       local ext = f:match('%.%w+$')
       if ext == '.so' or ext == '.dll' or ext == '.dylib' then

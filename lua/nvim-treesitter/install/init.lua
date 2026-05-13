@@ -36,7 +36,7 @@ end
 
 local function get_package_path(...)
   local info = assert(debug.getinfo(1, 'S'))
-  return fs.joinpath(fn.fnamemodify(info.source:sub(2), ':p:h:h:h'), ...)
+  return fs.joinpath(fn.fnamemodify(info.source:sub(2), ':p:h:h:h:h'), ...)
 end
 
 M.get_package_path = get_package_path
