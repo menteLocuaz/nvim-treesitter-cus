@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = '7195ee573ab5c3b3bb0e91b042e6f83ac1b11104',
-    url = 'https://github.com/gbprod/tree-sitter-twig',
+    revision = "0afd9a6d808944e65a7be393e31868b85345735f",
+    url = "https://github.com/gbprod/tree-sitter-twig"
   },
-  maintainers = { '@gbprod' },
-  tier = 2,
+  maintainers = { "@gbprod" },
+  tier = 2
 }

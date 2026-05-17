@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = '760ba8e34e7a68294ffb9c495e1388e030366188',
-    url = 'https://github.com/the-mikedavis/tree-sitter-git-rebase',
+    revision = "39bf3b7566c86ccffd70aaa5105c7c8b76788975",
+    url = "https://github.com/the-mikedavis/tree-sitter-git-rebase"
   },
-  maintainers = { '@gbprod' },
-  tier = 2,
+  maintainers = { "@gbprod" },
+  tier = 2
 }

@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = 'd183186995204314700be3e9e0a48053ea16b350',
-    url = 'https://github.com/sogaiu/tree-sitter-janet-simple',
+    revision = "3c1bdcfff374138da03a1db25c75efce623910fe",
+    url = "https://github.com/sogaiu/tree-sitter-janet-simple"
   },
-  maintainers = { '@sogaiu' },
-  tier = 2,
+  maintainers = { "@sogaiu" },
+  tier = 2
 }

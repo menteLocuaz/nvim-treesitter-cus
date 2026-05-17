@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = 'aa630ef48903ab99e406a8acd2e2933077cc34e1',
-    url = 'https://github.com/Joakker/tree-sitter-json5',
+    revision = "248b8564567087d7866be76569b182f6dd7e14e9",
+    url = "https://github.com/Joakker/tree-sitter-json5"
   },
-  maintainers = { '@Joakker' },
-  tier = 2,
+  maintainers = { "@Joakker" },
+  tier = 2
 }

@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = '6b2b5e41734bd6f07ea4c36ac20fb6f14061c841',
-    url = 'https://github.com/tree-sitter-grammars/tree-sitter-qmldir',
+    revision = "1fa9200b3e57f728291f7a85b0a6990fc98387ac",
+    url = "https://github.com/tree-sitter-grammars/tree-sitter-qmldir"
   },
-  maintainers = { '@amaanq' },
-  tier = 2,
+  maintainers = { "@amaanq" },
+  tier = 2
 }
