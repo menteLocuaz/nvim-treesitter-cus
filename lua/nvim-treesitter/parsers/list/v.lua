@@ -1,9 +1,9 @@
 return {
   install_info = {
-    revision = '095865df4b9ddd21e376d635586c663d5a736f71',
-    url = 'https://github.com/vlang/v-analyzer',
-    location = 'tree_sitter_v',
+    location = "tree_sitter_v",
+    revision = "d5f13c0736f0df3e337cee7c69f68c640587d84d",
+    url = "https://github.com/vlang/v-analyzer"
   },
-  maintainers = { '@kkharji', '@amaanq' },
-  tier = 2,
+  maintainers = { "@kkharji", "@amaanq" },
+  tier = 2
 }

@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = '122dd101919289ea809bad643712fcb483a1bed0',
-    url = 'https://github.com/khiner/tree-sitter-faust',
+    revision = "2bd027f18927d13afdfdfc3f1e7088aaa515691f",
+    url = "https://github.com/khiner/tree-sitter-faust"
   },
-  maintainers = { '@khiner' },
-  tier = 2,
+  maintainers = { "@khiner" },
+  tier = 2
 }

@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = '8abb3e8b33256d89127a35e87480736f74755ff9',
-    url = 'https://github.com/alex-pinkus/tree-sitter-swift',
+    revision = "3d38a39612badc2a2525dde3676c90b0fe8128cd",
+    url = "https://github.com/alex-pinkus/tree-sitter-swift"
   },
-  maintainers = { '@alex-pinkus' },
-  tier = 2,
+  maintainers = { "@alex-pinkus" },
+  tier = 2
 }

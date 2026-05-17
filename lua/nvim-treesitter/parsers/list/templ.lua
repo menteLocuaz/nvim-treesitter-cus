@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = '1c6db04effbcd7773c826bded9783cbc3061bd55',
-    url = 'https://github.com/vrischmann/tree-sitter-templ',
+    revision = "68d6707ed20159ae7525241b8161c126dc1c620c",
+    url = "https://github.com/vrischmann/tree-sitter-templ"
   },
-  maintainers = { '@vrischmann' },
-  tier = 2,
+  maintainers = { "@vrischmann" },
+  tier = 2
 }

@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = '851e9cb257ba7c66cc8c14214a31c44d2f1e954e',
-    url = 'https://github.com/derekstride/tree-sitter-sql',
+    revision = "c2e1e08db1ea20dc23bdb8d228a81a8756e9c450",
+    url = "https://github.com/derekstride/tree-sitter-sql"
   },
-  maintainers = { '@derekstride' },
-  tier = 2,
+  maintainers = { "@derekstride" },
+  tier = 2
 }
