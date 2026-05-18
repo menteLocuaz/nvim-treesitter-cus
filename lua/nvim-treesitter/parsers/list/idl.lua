@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = 'fb65762a13538b397e41a5fc1e9564c9df841410',
-    url = 'https://github.com/cathaysia/tree-sitter-idl',
+    revision = "d9ac4b12fd2092fea27f6803defd14b2ae10b4f9",
+    url = "https://github.com/cathaysia/tree-sitter-idl"
   },
-  maintainers = { '@cathaysia' },
-  tier = 2,
+  maintainers = { "@cathaysia" },
+  tier = 2
 }

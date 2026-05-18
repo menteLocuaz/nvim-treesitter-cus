@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = 'c36aac51a915fdfcaf178128ba1e9c2205b25930',
-    url = 'https://github.com/MaeBrooks/tree-sitter-gren',
+    revision = "cecd8ce9b18f1803d37682f33b6224978fd04d31",
+    url = "https://github.com/MaeBrooks/tree-sitter-gren"
   },
-  maintainers = { '@MaeBrooks' },
-  tier = 2,
+  maintainers = { "@MaeBrooks" },
+  tier = 2
 }

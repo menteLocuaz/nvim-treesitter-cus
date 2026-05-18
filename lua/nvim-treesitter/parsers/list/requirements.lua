@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = 'caeb2ba854dea55931f76034978de1fd79362939',
-    url = 'https://github.com/tree-sitter-grammars/tree-sitter-requirements',
+    revision = "2c3bb291f497258ba417d052faa14a2dfee6d401",
+    url = "https://github.com/tree-sitter-grammars/tree-sitter-requirements"
   },
-  maintainers = { '@ObserverOfTime' },
-  tier = 2,
+  maintainers = { "@ObserverOfTime" },
+  tier = 2
 }

@@ -1,0 +1,441 @@
+*nvim-treesitter.txt*         Treesitter parser and query installer for Neovim
+
+Authors:
+  Kiyan Yazdani <yazdani.kiyan@protonmail.com>
+  Thomas Vigouroux <tomvig38@gmail.com>
+  Stephan Seitz <stephan.seitz@fau.de>
+  Steven Sojka <Steven.Sojka@tdameritrade.com>
+  Santos Gallegos <stsewd@protonmail.com>
+  https://github.com/nvim-treesitter/nvim-treesitter/graphs/contributors
+
+                                       Type |gO| to see the table of contents.
+
+==============================================================================
+INTRODUCTION                                             *nvim-treesitter-intro*
+
+nvim-treesitter is a plugin that downloads, compiles, and manages tree-sitter
+parsers and their queries for Neovim. It lets you install tree-sitter support
+for programming languages through a simple command or Lua API.
+
+This document is organized into four parts:
+
+  * Tutorial — first-time setup walkthrough
+  * How-to guides — solutions for specific tasks
+  * Reference — commands, API, and options
+  * Explanation — how tree-sitter and nvim-treesitter work
+
+If you are new to nvim-treesitter, start with the Tutorial.
+
+==============================================================================
+TUTORIAL: First Treesitter Setup             *nvim-treesitter-tutorial*
+
+This tutorial walks you through setting up nvim-treesitter for the first time.
+By the end, you will have tree-sitter-based highlighting, folds, and
+indentation working for Rust, JavaScript, and Zig.
+
+----------------------------------------------------------------------
+Step 1: Install the plugin
+
+Add nvim-treesitter to your plugin manager. For example, with lazy.nvim: >
+
+  {
+    'nvim-treesitter/nvim-treesitter',
+    build = ':TSUpdate',
+  }
+
+<With packer.nvim: >
+
+  use {
+    'nvim-treesitter/nvim-treesitter',
+    run = ':TSUpdate',
+  }
+
+<----------------------------------------------------------------------
+Step 2: Call the setup function
+
+Add this to your `init.lua` to configure nvim-treesitter: >
+
+  require'nvim-treesitter'.setup {}
+
+<You do not need to pass any options right now. The default settings work
+fine for a first install.
+
+----------------------------------------------------------------------
+Step 3: Install parsers for your languages
+
+Open Neovim and run: >
+
+  :TSInstall rust javascript zig
+
+<This downloads, compiles, and installs the tree-sitter parsers for all three
+languages. Installation runs asynchronously. You can watch progress with
+|:TSLog|.
+
+----------------------------------------------------------------------
+Step 4: Verify the installation
+
+Run: >
+
+  :checkhealth nvim-treesitter
+
+<This shows which parsers and queries are installed and flags any problems.
+
+----------------------------------------------------------------------
+Step 5: Enable treesitter features
+
+Tree-sitter features are not on by default. You need to enable them per file
+type. Add an autocommand in your `init.lua`: >
+
+  vim.api.nvim_create_autocmd('FileType', {
+    pattern = { 'rust', 'javascript', 'zig' },
+    callback = function()
+      -- syntax highlighting (provided by Neovim core)
+      vim.treesitter.start()
+      -- code folding (provided by Neovim core)
+      vim.wo.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
+      vim.wo.foldmethod = 'expr'
+      -- indentation (provided by nvim-treesitter)
+      vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+    end,
+  })
+
+<----------------------------------------------------------------------
+Next steps
+
+Open a Rust, JavaScript, or Zig file. You should see accurate syntax
+highlighting. Try `zc`/`zo` to fold code blocks. If you want treesitter
+support for more languages, repeat Step 3 with different names.
+
+==============================================================================
+HOW-TO GUIDES                                   *nvim-treesitter-howto*
+
+----------------------------------------------------------------------
+Install a parser for a specific language               *howto-ts-install*
+
+  :TSInstall lua
+
+This installs the Lua parser. You can pass multiple languages at once: >
+
+  :TSInstall python go ruby
+
+<----------------------------------------------------------------------
+Force-reinstall a parser                             *howto-ts-force*
+
+If a parser is already installed and you want to replace it: >
+
+  :TSInstall! rust
+
+<The `!` forces installation even when the parser is already present.
+
+----------------------------------------------------------------------
+Regenerate parser.c from grammar                    *howto-ts-fromgrammar*
+
+If a parser uses an outdated `parser.c` that does not match your Neovim ABI: >
+
+  :TSInstallFromGrammar rust
+
+<This regenerates `parser.c` from `grammar.json` or `grammar.js` before
+compiling.
+
+----------------------------------------------------------------------
+Update parsers                                         *howto-ts-update*
+
+Update all installed parsers: >
+
+  :TSUpdate
+
+<Update only specific parsers: >
+
+  :TSUpdate rust lua
+
+<----------------------------------------------------------------------
+Uninstall parsers                                     *howto-ts-uninstall*
+
+  :TSUninstall rust
+
+Remove multiple parsers or all: >
+
+  :TSUninstall rust lua
+  :TSUninstall all
+
+<----------------------------------------------------------------------
+Set a custom install directory                       *howto-install-dir*
+
+By default parsers go to `stdpath('data')/site`. To change this, pass
+`install_dir` to |nvim-treesitter.setup()| before any install operation: >
+
+  require'nvim-treesitter'.setup {
+    install_dir = "/home/user/my-parsers",
+  }
+
+<The directory is automatically prepended to |runtimepath|.
+
+----------------------------------------------------------------------
+Install parsers synchronously in a script       *howto-sync-install*
+
+By default, |nvim-treesitter.install()| runs asynchronously. To wait until
+completion (e.g. in a bootstrap script): >
+
+  require('nvim-treesitter').install({ 'rust', 'lua' })
+                            :wait(300000)  -- timeout in ms
+
+<The same pattern works for |nvim-treesitter.update()|:
+
+  require('nvim-treesitter').update():wait(300000)
+
+<----------------------------------------------------------------------
+Install parsers by tier                             *howto-ts-tiers*
+
+Languages are grouped into tiers. You can install all parsers in a tier: >
+
+  :TSInstall stable
+  :TSInstall unstable
+
+<Tiers are:
+
+  stable (1)     — actively maintained, widely used
+  unstable (2)   — functional but may have issues
+  unmaintained (3) — no active maintainer
+  unsupported (4)  — not officially supported
+
+You can also install everything with `:TSInstall all` but this is not
+recommended.
+
+==============================================================================
+REFERENCE                                           *nvim-treesitter-reference*
+
+----------------------------------------------------------------------
+Commands                                              *nvim-treesitter-commands*
+
+:TSInstall {language}[!]                                       *:TSInstall*
+
+    Install one or more tree-sitter parsers. {language} can be one or more
+    language names or a tier name (`stable`, `unstable`, `all`). This is a
+    no-op if the parser(s) are already installed. Append `!` to force
+    installation.
+
+:TSInstallFromGrammar {language}                       *:TSInstallFromGrammar*
+
+    Like |:TSInstall| but also regenerates `parser.c` from the original
+    grammar definition. Use this when the pre-built `parser.c` is outdated
+    and incompatible with your Neovim ABI.
+
+:TSUpdate [{language}]                                          *:TSUpdate*
+
+    Update parsers to the revision pinned in the manifest, if newer than
+    the installed version. If {language} is given, update only those
+    parsers or the named tier; otherwise update every installed parser.
+    Recommended as a build step in your plugin manager.
+
+:TSUninstall {language}                                       *:TSUninstall*
+
+    Delete the parser and queries for {language}. Use `all` to remove
+    everything.
+
+:TSLog                                                              *:TSLog*
+
+    Display the log from the most recent install, update, or uninstall
+    operation.
+
+----------------------------------------------------------------------
+Lua API                                                *nvim-treesitter-api*
+
+setup({opts})                                      *nvim-treesitter.setup()*
+
+    Configure installation options. Must be called before any install,
+    update, or uninstall operation.
+
+    Note: Calling `setup` is optional with default settings.
+
+    Parameters: ~
+    • {opts}  `(table?)` Optional parameters:
+              • {install_dir} (`string?`, default `stdpath('data')/site`)
+                Directory to install parsers and queries to. Prepended
+                to |runtimepath| automatically.
+
+install({languages} [, {opts}])                  *nvim-treesitter.install()*
+
+    Download, compile, and install tree-sitter parsers and their queries
+    for the given languages.
+
+    Runs asynchronously by default. Use `:wait()` to block (see
+    |howto-sync-install|).
+
+    Parameters: ~
+    • {languages}  `(string[]|string)` Language name(s) or tier name(s)
+                   (`stable`, `unstable`).
+    • {opts}       `(table?)` Optional parameters:
+                   • {force}    (`boolean?`, default `false`)
+                     Reinstall even if already installed.
+                   • {generate} (`boolean?`, default `false`)
+                     Regenerate `parser.c` from grammar before compiling.
+                   • {max_jobs} (`integer?`) Limit parallel compilation
+                     tasks (useful with {generate} on memory-limited
+                     systems).
+                   • {summary}  (`boolean?`, default `false`)
+                     Print a summary of successes and failures.
+
+uninstall({languages} [, {opts}])              *nvim-treesitter.uninstall()*
+
+    Remove parsers and queries for the given languages.
+
+    Parameters: ~
+    • {languages}  `(string[]|string)` Language name(s) or tier name(s).
+    • {opts}       `(table?)` Optional parameters:
+                   • {summary} (`boolean?`, default `false`)
+                     Print a summary of successes and failures.
+
+update([{languages} [, {opts}]])                *nvim-treesitter.update()*
+
+    Update parsers and queries if the installed version is older than the
+    revision pinned in the manifest.
+
+    Runs asynchronously by default. Use `:wait()` to block.
+
+    Parameters: ~
+    • {languages}  `(string[]|string)?` Language name(s) or tier name(s).
+                   Defaults to all installed parsers.
+    • {opts}       `(table?)` Optional parameters:
+                   • {max_jobs} (`integer?`) Limit parallel compilation
+                     tasks.
+                   • {summary}  (`boolean?`, default `false`)
+                     Print a summary of successes and failures.
+
+indentexpr()                                  *nvim-treesitter.indentexpr()*
+
+    Returns an expression string suitable for `vim.bo.indentexpr`. Used
+    to enable tree-sitter-based indentation: >
+      vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+<
+
+get_available([{tier}])                    *nvim-treesitter.get_available()*
+
+    Return a list of language names available for installation.
+
+    Parameters: ~
+    • {tier}  `(integer?)` Filter by tier:
+              `1` = stable, `2` = unstable, `3` = unmaintained,
+              `4` = unsupported.
+
+get_installed([{type}])                    *nvim-treesitter.get_installed()*
+
+    Return a list of languages installed via nvim-treesitter.
+
+    Note: Only searches nvim-treesitter's installation directory. To list
+    all parsers from any source: >
+      vim.api.nvim_get_runtime_file('parser/*', true)
+<
+
+    Parameters: ~
+    • {type}  `('queries'|'parsers')?` If given, only return languages
+              that have installed queries or parsers respectively.
+
+==============================================================================
+EXPLANATION                                     *nvim-treesitter-explanation*
+
+----------------------------------------------------------------------
+What is tree-sitter?
+
+Tree-sitter is a parsing library that builds a concrete syntax tree (CST)
+from source code. Unlike regular expressions or token-based highlighters,
+tree-sitter understands the full grammatical structure of a language. This
+enables accurate syntax highlighting that does not get confused by strings,
+comments, or nested constructs.
+
+Neovim includes built-in tree-sitter support (|vim.treesitter|). It can
+parse buffers and apply highlighting queries without any plugins.
+
+----------------------------------------------------------------------
+What does nvim-treesitter add?
+
+Neovim core provides the engine (parsing, querying) but does NOT ship
+parsers or queries for any language. It also cannot download or compile
+parsers on its own.
+
+nvim-treesitter fills this gap by:
+
+  • Maintaining a registry of parser sources (URLs, revisions, tiers)
+  • Downloading and compiling parsers for you
+  • Shipping a complete set of queries (highlighting, folds, indents,
+    injections) for each language
+  • Providing commands (`:TSInstall`, `:TSUpdate`, etc.) to manage
+    everything
+  • Exposing an indentation function for use with `indentexpr`
+
+In short: nvim-treesitter is a package manager for tree-sitter parsers and
+queries.
+
+----------------------------------------------------------------------
+Parsers vs. queries
+
+A tree-sitter parser is a compiled C library (`.so`) that turns source code
+into a syntax tree. Each language needs its own parser.
+
+Queries are files ending in `.scm` (Scheme) that describe which syntax tree
+nodes to match for a given feature — for example, "highlight `function_call`
+nodes blue" or "indent one level inside `block` nodes".
+
+nvim-treesitter installs both together. The queries live under
+`queries/<lang>/` in the installation directory.
+
+----------------------------------------------------------------------
+When should you use this plugin?
+
+Use nvim-treesitter if you want:
+
+  • Syntax highlighting that handles complex languages correctly
+  • Code folding based on syntax tree structure
+  • Smart indentation driven by syntax
+  • An easy way to install and update parsers
+
+You may NOT need this plugin if:
+
+  • Your language already ships a parser bundled with Neovim
+  • You manage parsers manually (e.g. through your system package manager)
+  • You only use basic highlighting and the built-in regex-based
+    |:syntax| is sufficient
+
+----------------------------------------------------------------------
+The tier system
+
+Languages in nvim-treesitter are categorized into tiers to indicate their
+maintenance status:
+
+  stable (1)       — Fully working, actively maintained, recommended.
+  unstable (2)     — Works but may have rough edges or missing queries.
+  unmaintained (3) — No active maintainer; may break over time.
+  unsupported (4)  — Available but not officially supported. Use at your
+                     own risk.
+
+When in doubt, install only `stable` parsers.
+
+----------------------------------------------------------------------
+Why :TSInstallFromGrammar exists
+
+Tree-sitter parsers are distributed as pre-generated `parser.c` files.
+Sometimes the author of the grammar generates `parser.c` against an older
+ABI, and it no longer compiles with your version of Neovim.
+
+`:TSInstallFromGrammar` solves this by downloading the grammar definition
+(`grammar.js` or `grammar.json`) and generating a fresh `parser.c` from it.
+This always produces a parser compatible with your Neovim.
+
+The trade-off: generating `parser.c` requires `tree-sitter-cli` (v0.26.1+)
+to be installed on your system, and it takes longer than using a pre-built
+`parser.c`.
+
+----------------------------------------------------------------------
+Relationship to Neovim core
+
+Starting with Neovim 0.12, many tree-sitter features are built into the
+editor itself:
+
+  • `vim.treesitter.start()` — enables highlighting in a buffer
+  • `vim.treesitter.foldexpr()` — folding expression
+  • `vim.treesitter.query.set()` — set custom queries
+
+nvim-treesitter does NOT replace any of these. It complements them by
+providing the parsers and query files that Neovim core does not ship.
+
+=======================================================================
+vim:tw=78:ts=8:expandtab:noet:ft=help:norl:

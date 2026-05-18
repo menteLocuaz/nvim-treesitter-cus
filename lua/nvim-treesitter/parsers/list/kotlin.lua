@@ -1,7 +1,7 @@
 return {
   install_info = {
-    revision = '93bfeee1555d2b1442d68c44b0afde2a3b069e46',
-    url = 'https://github.com/fwcd/tree-sitter-kotlin',
+    revision = "f66d2908542e93c0204c6c241f794afe4e9cd5d1",
+    url = "https://github.com/fwcd/tree-sitter-kotlin"
   },
-  tier = 2,
+  tier = 2
 }

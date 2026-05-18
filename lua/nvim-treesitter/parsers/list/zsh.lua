@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = 'bd344c23a7683e293d077c6648e88f209782fedb',
-    url = 'https://github.com/georgeharker/tree-sitter-zsh',
+    revision = "86b37f8d515a529722411bc7bf3c9e993a4743bf",
+    url = "https://github.com/georgeharker/tree-sitter-zsh"
   },
-  maintainers = { '@georgeharker' },
-  tier = 2,
+  maintainers = { "@georgeharker" },
+  tier = 2
 }

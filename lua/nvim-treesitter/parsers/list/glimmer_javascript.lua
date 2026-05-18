@@ -1,9 +1,9 @@
 return {
   install_info = {
-    revision = '5cc865a2a0a77cbfaf5062c8fcf2a9919bd54f87',
-    url = 'https://github.com/NullVoxPopuli/tree-sitter-glimmer-javascript',
+    revision = "d9cf7a2f1dad3c6b660148eaf77e955d418fdb8b",
+    url = "https://github.com/NullVoxPopuli/tree-sitter-glimmer-javascript"
   },
-  maintainers = { '@NullVoxPopuli' },
-  requires = { 'ecma' },
-  tier = 2,
+  maintainers = { "@NullVoxPopuli" },
+  requires = { "ecma" },
+  tier = 2
 }

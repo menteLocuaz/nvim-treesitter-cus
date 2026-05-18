@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = '8923c1e38b9634a688a6c0dce7c18c8ffb823e79',
-    url = 'https://github.com/dpezto/tree-sitter-gnuplot',
+    revision = "29586d47b9363c29bf02cc4d1b45c4379adf6317",
+    url = "https://github.com/dpezto/tree-sitter-gnuplot"
   },
-  maintainers = { '@dpezto' },
-  tier = 2,
+  maintainers = { "@dpezto" },
+  tier = 2
 }

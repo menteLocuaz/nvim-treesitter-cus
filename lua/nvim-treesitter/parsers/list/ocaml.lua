@@ -1,9 +1,9 @@
 return {
   install_info = {
-    revision = '5a979b3ec7f1fe990b8e8c4412294a0cf7228e45',
-    url = 'https://github.com/tree-sitter/tree-sitter-ocaml',
-    location = 'grammars/ocaml',
+    location = "grammars/ocaml",
+    revision = "6902a86ab5b3b80c622030210aae2d8cb95eb775",
+    url = "https://github.com/tree-sitter/tree-sitter-ocaml"
   },
-  maintainers = { '@undu' },
-  tier = 2,
+  maintainers = { "@undu" },
+  tier = 2
 }
