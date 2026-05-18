@@ -43,7 +43,7 @@ function M.get_indent(lnum)
     return -1
   end
 
-  parser_obj:parse({ vim.fn.line('w0') - 1, vim.fn.line('w$') })
+  parser_obj:parse()
 
   local row = lnum - 1
   local root, lang_tree = parser.resolve_root(parser_obj, row)

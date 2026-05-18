@@ -75,13 +75,15 @@ end
 assert(#vim.tbl_keys(jobs) == 0)
 
 if #updates > 0 then
-  -- write new parser file
-  local header = '---@type nvim-ts.parsers\nreturn '
-  local parser_file = header .. vim.inspect(parsers)
-  if vim.fn.executable('stylua') == 1 then
-    parser_file = vim.system({ 'stylua', '-' }, { stdin = parser_file }):wait().stdout --[[@as string]]
+  -- write new parser files
+  for _, name in ipairs(updates) do
+    local p = parsers[name]
+    local parser_file = 'return ' .. vim.inspect(p)
+    if vim.fn.executable('stylua') == 1 then
+      parser_file = vim.system({ 'stylua', '-' }, { stdin = parser_file }):wait().stdout --[[@as string]]
+    end
+    util.write_file('lua/nvim-treesitter/parsers/list/' .. name:gsub('/', '_') .. '.lua', parser_file)
   end
-  util.write_file('lua/nvim-treesitter/parsers.lua', parser_file)
 
   table.sort(updates)
   local update_list = table.concat(updates, ', ')
