@@ -1,8 +1,25 @@
 local M = {}
 
+local cache = {
+  all = nil,
+  parsers = nil,
+  queries = nil,
+}
+
+function M.invalidate_cache()
+  cache.all = nil
+  cache.parsers = nil
+  cache.queries = nil
+end
+
 ---@param filter 'queries'|'parsers'?
 ---@return string[]
 function M.get_installed(filter)
+  local cache_key = filter or 'all'
+  if cache[cache_key] then
+    return cache[cache_key]
+  end
+
   local config = require('nvim-treesitter.config')
   local result = {} ---@type string[]
   local seen = {} ---@type table<string, boolean>
@@ -31,6 +48,7 @@ function M.get_installed(filter)
     end
   end
 
+  cache[cache_key] = result
   return result
 end
 

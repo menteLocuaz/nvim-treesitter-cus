@@ -56,6 +56,7 @@ local parsers = require('nvim-treesitter.config.parsers')
 local languages = require('nvim-treesitter.config.languages')
 
 M.get_installed = paths.get_installed
+M.invalidate_cache = paths.invalidate_cache
 M.get_available = parsers.get_available
 M.norm_languages = languages.norm_languages
 

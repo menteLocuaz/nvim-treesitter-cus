@@ -28,6 +28,7 @@ M.is_installing = concurrency.is_installing
 ---@field summary? boolean
 
 local function reload_parsers()
+  config.invalidate_cache()
   package.loaded['nvim-treesitter.parsers'] = nil
   ---@diagnostic disable-next-line:duplicate-require
   parsers = require('nvim-treesitter.parsers')
@@ -143,6 +144,7 @@ M.uninstall = a.async(function(languages, options)
   end
 
   system.join(system.MAX_JOBS, tasks)
+  reload_parsers()
   if #tasks > 1 then
     a.schedule()
     if options and options.summary then
