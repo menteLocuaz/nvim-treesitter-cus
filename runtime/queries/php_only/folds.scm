@@ -10,6 +10,7 @@
   (anonymous_function)
   (arrow_function)
   (class_declaration)
+  (anonymous_class)
   (interface_declaration)
   (trait_declaration)
   (enum_declaration)
@@ -19,6 +20,8 @@
   (namespace_use_declaration)+
   (array_creation_expression)
   (match_expression)
+  (match_conditional_expression)
+  (match_default_expression)
   (heredoc)
   (nowdoc)
   (attribute)

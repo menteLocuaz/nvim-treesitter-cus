@@ -14,6 +14,9 @@
   (case_statement)
   (default_statement)
   (property_hook_list)
+  (anonymous_class)
+  (match_conditional_expression)
+  (match_default_expression)
 ] @indent.begin
 
 (return_statement
