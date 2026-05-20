@@ -2,9 +2,9 @@ local uv = vim.uv
 
 local a = require('nvim-treesitter.async')
 local log = require('nvim-treesitter.log')
+local config = require('nvim-treesitter.config')
 
 local M = {}
-local MAX_JOBS = 100
 
 --- Wrapper for vim.system that catches spawn errors and returns a proper SystemCompleted.
 --- Without this, uv.spawn failures kill the coroutine and cause hangs.
@@ -80,7 +80,5 @@ function M.join(max_jobs, tasks)
     end
   end)
 end
-
-M.MAX_JOBS = MAX_JOBS
 
 return M

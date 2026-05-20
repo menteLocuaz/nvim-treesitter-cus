@@ -1,6 +1,7 @@
 local M = {}
 
-local TIERS = { 'stable', 'unstable', 'unmaintained', 'unsupported' }
+local constants = require('nvim-treesitter.constants')
+local TIERS = constants.TIERS
 
 local function expand_tiers(list)
   for i, tier in ipairs(TIERS) do

@@ -1,14 +1,18 @@
 local M = {}
 
+local constants = require('nvim-treesitter.constants')
+
 ---@type string[]
-M.tiers = { 'stable', 'unstable', 'unmaintained', 'unsupported' }
+M.tiers = constants.TIERS
 
 ---@class TSConfig
 ---@field install_dir string
+---@field max_jobs integer
 
 ---@type TSConfig
 local config = {
   install_dir = vim.fs.joinpath(vim.fn.stdpath('data') --[[@as string]], 'site'),
+  max_jobs = constants.MAX_JOBS,
 }
 
 ---Returns the raw install directory path without creating subdirectories.
@@ -16,6 +20,12 @@ local config = {
 ---@return string
 function M._config_dir()
   return config.install_dir
+end
+
+---Returns the maximum number of concurrent jobs.
+---@return integer
+function M.get_max_jobs()
+  return config.max_jobs
 end
 
 ---Setup call for users to override configuration configurations.

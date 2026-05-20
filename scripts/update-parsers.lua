@@ -88,6 +88,22 @@ if #updates > 0 then
   table.sort(updates)
   local update_list = table.concat(updates, ', ')
   print(string.format('\nUpdated parsers: %s', update_list))
+
+  -- Regenerate manifest
+  local manifest = {}
+  for k, p in pairs(require('nvim-treesitter.parsers')) do
+    manifest[k] = {
+      tier = p.tier,
+      maintainers = p.maintainers,
+      requires = p.requires,
+    }
+  end
+  local manifest_file = 'return ' .. vim.inspect(manifest)
+  if vim.fn.executable('stylua') == 1 then
+    manifest_file = vim.system({ 'stylua', '-' }, { stdin = manifest_file }):wait().stdout --[[@as string]]
+  end
+  util.write_file('lua/nvim-treesitter/parsers/manifest.lua', manifest_file)
+
   -- pass list to workflow
   local gh_env = os.getenv('GITHUB_ENV')
   if gh_env then
