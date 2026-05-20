@@ -47,6 +47,8 @@
   "static"
 ] @keyword.modifier
 
+(readonly_modifier) @keyword.modifier
+
 [
   "return"
   "exit"
@@ -163,6 +165,13 @@
   "::"
 ] @operator
 
+; Union and intersection type operators (PHP 8.0+)
+(union_type
+  "|" @operator)
+
+(intersection_type
+  "&" @operator)
+
 ; Variables
 (variable_name) @variable
 
@@ -171,7 +180,7 @@
   (#lua-match? @constant "^_?[A-Z][A-Z%d_]*$"))
 
 ((name) @constant.builtin
-  (#lua-match? @constant.builtin "^__[A-Z][A-Z%d_]+__$"))
+  (#lua-match? @constant.builtin "^__.*__$"))
 
 (const_declaration
   (const_element
@@ -195,7 +204,7 @@
 
 (named_type
   (name) @type.builtin
-  (#any-of? @type.builtin "static" "self" "parent"))
+  (#any-of? @type.builtin "static" "self" "parent" "true" "false" "null" "never"))
 
 (class_declaration
   name: (name) @type)
@@ -211,6 +220,9 @@
 
 (enum_declaration
   name: (name) @type)
+
+(enum_case
+  name: (name) @constant)
 
 (interface_declaration
   name: (name) @type)
@@ -291,6 +303,11 @@
       (name) @type)
   ]
   (name) @constant)
+
+; self::class, static::class, parent::class
+(class_constant_access_expression
+  (relative_scope) @type.builtin
+  (name) @constant.builtin)
 
 (scoped_property_access_expression
   scope: [
@@ -386,6 +403,10 @@
       (name) @constructor)
   ])
 
+; Anonymous classes (new class {})
+(anonymous_class
+  "class" @keyword.type)
+
 ; Parameters
 (variadic_parameter
   "..." @operator
@@ -436,11 +457,14 @@
 
 ; Attributes
 (attribute
-  name: [
+  [
     (name)
     (qualified_name)
     (relative_name)
   ] @attribute)
+
+(attribute
+  parameters: (arguments) @attribute)
 
 ; Conditions ( ? : )
 (conditional_expression
@@ -455,10 +479,6 @@
     "encoding"
   ] @constant)
 
-; Named arguments
-(named_argument
-  name: (name) @variable.parameter)
-
 ; Static variable
 (static_variable_declaration
   (variable_name) @variable)
@@ -467,25 +487,29 @@
 (match_expression
   "match" @keyword.conditional)
 
-(match_expression
-  (match_arm
-    expression: (_) @constant))
+(match_conditional_expression
+  conditional_expressions: (match_condition_list
+    (_) @constant)
+  return_expression: (_) @function)
+
+(match_default_expression
+  "default" @keyword.conditional
+  return_expression: (_) @function)
 
 ; Arrow functions
 (arrow_function
   "fn" @keyword.function)
 
-; First-class callable
-(scoped_call_expression
-  (name) @function.call
-  (parenthesized_expression
-    (_)))
+; First-class callable syntax (PHP 8.1)
+(function_call_expression
+  function: (name) @function.call
+  arguments: (arguments
+    (variadic_placeholder
+      "..." @operator)))
 
-; Constructor property promotion
-(parameter
-  visibility_modifier: (_)
-  (variable_name) @property)
-
+; Constructor property promotion (PHP 8.0+)
+; Note: simple_parameter does not have visibility_modifier in this grammar version
+; Property promotion is handled through property_declaration rules
 ; Basic tokens
 [
   (string)

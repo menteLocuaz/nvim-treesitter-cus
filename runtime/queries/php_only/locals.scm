@@ -4,6 +4,8 @@
   name: (name) @local.definition.type) @local.scope
   (#set! definition.type.scope "parent"))
 
+(anonymous_class) @local.scope
+
 ((method_declaration
   name: (name) @local.definition.method) @local.scope
   (#set! definition.method.scope "parent"))
@@ -16,6 +18,10 @@
   (anonymous_function_use_clause
     (variable_name
       (name) @local.definition.var))) @local.scope
+
+((enum_declaration
+  name: (name) @local.definition.type) @local.scope
+  (#set! definition.type.scope "parent"))
 
 ; Definitions
 ;------------
@@ -43,6 +49,9 @@
 (namespace_use_clause
   (qualified_name
     (name) @local.definition.type))
+
+(enum_case
+  name: (name) @local.definition.var)
 
 ; References
 ;------------
