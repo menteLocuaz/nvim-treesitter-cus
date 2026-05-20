@@ -69,7 +69,7 @@ local function do_install(languages, options)
     end)
   end
 
-  system.join(options.max_jobs or system.MAX_JOBS, tasks)
+  system.join(options.max_jobs or config.get_max_jobs(), tasks)
   if #tasks > 1 then
     a.schedule()
     if options and options.summary then
@@ -103,7 +103,7 @@ M.update = a.async(function(languages, options)
     end)
   end
 
-  system.join(options.max_jobs or system.MAX_JOBS, update_tasks)
+  system.join(options.max_jobs or config.get_max_jobs(), update_tasks)
   languages = to_update
 
   local summary = options and options.summary
@@ -143,7 +143,7 @@ M.uninstall = a.async(function(languages, options)
     end
   end
 
-  system.join(system.MAX_JOBS, tasks)
+  system.join(config.get_max_jobs(), tasks)
   reload_parsers()
   if #tasks > 1 then
     a.schedule()
