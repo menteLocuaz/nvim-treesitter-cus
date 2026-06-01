@@ -1,32 +1,24 @@
 local M = {}
 
 ---@param filename string
----@return string
+---@return string?
 function M.read_file(filename)
-  local file = assert(io.open(filename, 'rb'))
-
-  local ok, result = pcall(file.read, file, '*a')
-  file:close()
-
+  local ok, result = pcall(vim.fn.readfile, filename)
   if not ok then
-    error(result)
+    return nil
   end
-
-  ---@cast result string
-  return result
+  return table.concat(result, '\n')
 end
 
 ---@param filename string
 ---@param content string
 function M.write_file(filename, content)
-  local file = assert(io.open(filename, 'wb'))
-
-  local ok, err = pcall(file.write, file, content)
-  file:close()
-
-  if not ok then
-    error(err)
+  local fd = vim.uv.fs_open(filename, 1 + 64 + 512, 438)
+  if not fd then
+    error('Could not open file for writing: ' .. filename)
   end
+  vim.uv.fs_write(fd, content, 0)
+  vim.uv.fs_close(fd)
 end
 
 -- CLOCK cache: O(1) amortized eviction, no array shifts.

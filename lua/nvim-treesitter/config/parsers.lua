@@ -26,14 +26,22 @@ M.expand_tiers = expand_tiers
 ---@return string[]
 function M.get_available(tier)
   local parsers = require('nvim-treesitter.parsers')
-  local languages = vim.tbl_keys(parsers)
+  ---@diagnostic disable-next-line: undefined-field
+  parsers._load_all()
+  local languages = {}
+  for k in pairs(parsers) do
+    if type(k) == 'string' and k:sub(1, 1) ~= '_' then
+      languages[#languages + 1] = k
+    end
+  end
   table.sort(languages)
 
   if tier then
     languages = vim.tbl_filter(
       --- @param p string
       function(p)
-        return parsers[p] ~= nil and parsers[p].tier == tier
+        local info = parsers[p]
+        return info and info.tier == tier
       end,
       languages
     )
