@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = '0bb1b0ae1a3555180ae7b0004851da747fc230d1',
-    url = 'https://github.com/gleam-lang/tree-sitter-gleam',
+    revision = "4e4643c2215c2b2343d9ec179c798818c132c9cc",
+    url = "https://github.com/gleam-lang/tree-sitter-gleam"
   },
-  maintainers = { '@amaanq' },
-  tier = 2,
+  maintainers = { "@amaanq" },
+  tier = 2
 }

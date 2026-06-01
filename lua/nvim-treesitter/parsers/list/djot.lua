@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = '74fac1f53c6d52aeac104b6874e5506be6d0cfe6',
-    url = 'https://github.com/treeman/tree-sitter-djot',
+    revision = "759a61896ccb2200a4becec4443e768638a21d58",
+    url = "https://github.com/treeman/tree-sitter-djot"
   },
-  maintainers = { '@NoahTheDuke' },
-  tier = 2,
+  maintainers = { "@NoahTheDuke" },
+  tier = 2
 }

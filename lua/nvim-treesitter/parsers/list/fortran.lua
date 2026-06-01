@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = 'be30d90dc7dfa4080b9c4abed3f400c9163a88df',
-    url = 'https://github.com/stadelmanma/tree-sitter-fortran',
+    revision = "7edacd2b21aa80057d9725384a1304a1c758e0f8",
+    url = "https://github.com/stadelmanma/tree-sitter-fortran"
   },
-  maintainers = { '@amaanq' },
-  tier = 2,
+  maintainers = { "@amaanq" },
+  tier = 2
 }

@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = '73800ecc8bddeee8f1079a5a2e0c13c3d00269bb',
-    url = 'https://github.com/airbus-cert/tree-sitter-powershell',
+    revision = "d398441825243b00e317e87e1829b9d6a3e54ce0",
+    url = "https://github.com/airbus-cert/tree-sitter-powershell"
   },
-  maintainers = { '@L2jLiga' },
-  tier = 2,
+  maintainers = { "@L2jLiga" },
+  tier = 2
 }

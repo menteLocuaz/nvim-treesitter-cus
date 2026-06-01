@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = 'f5beed1da8e5fc856a1a11e29a929d0b7cdcfe3c',
-    url = 'https://github.com/apple/tree-sitter-pkl',
+    revision = "ed7b2e15909c8806e9f9a08300df64336d74b06a",
+    url = "https://github.com/apple/tree-sitter-pkl"
   },
-  maintainers = { '@ribru17' },
-  tier = 2,
+  maintainers = { "@ribru17" },
+  tier = 2
 }

@@ -22,7 +22,7 @@ local updates = {} ---@type string[]
 
 -- check for new revisions
 for k, p in pairs(parsers) do
-  if p.tier <= 2 and (tier == nil or p.tier == tier) and p.install_info then
+  if p.tier and p.tier <= 2 and (tier == nil or p.tier == tier) and p.install_info then
     print('Updating ' .. k)
     local cmd = p.tier == 1
         and {
@@ -75,12 +75,13 @@ end
 assert(#vim.tbl_keys(jobs) == 0)
 
 if #updates > 0 then
-  -- write new parser files
   for _, name in ipairs(updates) do
-    local p = parsers[name]
-    local parser_file = 'return ' .. vim.inspect(p)
+    local parser_file = 'lua/nvim-treesitter/parsers/list/' .. name:gsub('/', '_') .. '.lua'
+    local data = vim.deepcopy(parsers[name])
+    setmetatable(data, nil)
+    local content = 'return ' .. vim.inspect(data)
     if vim.fn.executable('stylua') == 1 then
-      parser_file = vim.system({ 'stylua', '-' }, { stdin = parser_file }):wait().stdout --[[@as string]]
+      content = vim.system({ 'stylua', '-' }, { stdin = content }):wait().stdout --[[@as string]]
     end
     util.write_file(
       'lua/nvim-treesitter/parsers/list/' .. name:gsub('/', '_') .. '.lua',

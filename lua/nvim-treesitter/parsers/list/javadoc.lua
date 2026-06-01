@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = 'e2f56b4d0df08f6ed5df8bae266f9e75b340a9ab',
-    url = 'https://github.com/rmuir/tree-sitter-javadoc',
+    revision = "93d488bb1472c9a83776cd22cd8fd756a9da8161",
+    url = "https://github.com/rmuir/tree-sitter-javadoc"
   },
-  maintainers = { '@rmuir' },
-  tier = 2,
+  maintainers = { "@rmuir" },
+  tier = 2
 }

@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = 'a06113f5175b805a37d20df0a6f9d722e0ab6cfe',
-    url = 'https://github.com/theoo/tree-sitter-slim',
+    revision = "d4ff7e388eb271c04662f2176c08548c9c51078f",
+    url = "https://github.com/theoo/tree-sitter-slim"
   },
-  maintainers = { '@theoo' },
-  tier = 2,
+  maintainers = { "@theoo" },
+  tier = 2
 }

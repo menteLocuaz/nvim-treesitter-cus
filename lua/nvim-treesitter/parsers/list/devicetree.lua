@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = 'e685f1f6ac1702b046415efb476444167d63e41a',
-    url = 'https://github.com/joelspadin/tree-sitter-devicetree',
+    revision = "e78bf56f206cb47bee28a217423acb651e076848",
+    url = "https://github.com/joelspadin/tree-sitter-devicetree"
   },
-  maintainers = { '@jedrzejboczar' },
-  tier = 2,
+  maintainers = { "@jedrzejboczar" },
+  tier = 2
 }

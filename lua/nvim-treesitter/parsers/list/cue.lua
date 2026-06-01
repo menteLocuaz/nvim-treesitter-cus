@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = '20bb9195dac00b64c00ee494812abf3bf76f4181',
-    url = 'https://github.com/eonpatapon/tree-sitter-cue',
+    revision = "dd7b90e0770ff18070c515937ba3c3d6d93db00e",
+    url = "https://github.com/eonpatapon/tree-sitter-cue"
   },
-  maintainers = { '@amaanq' },
-  tier = 2,
+  maintainers = { "@amaanq" },
+  tier = 2
 }

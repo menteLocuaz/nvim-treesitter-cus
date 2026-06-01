@@ -1,8 +1,8 @@
 return {
   install_info = {
-    revision = '1d78195c4fbb1fc027eb3e4220427f1eb8bfc89e',
-    url = 'https://github.com/WhatsApp/tree-sitter-erlang',
+    revision = "cd372956af6b515b222923d096d0b4878bc7300c",
+    url = "https://github.com/WhatsApp/tree-sitter-erlang"
   },
-  maintainers = { '@filmor' },
-  tier = 2,
+  maintainers = { "@filmor" },
+  tier = 2
 }
