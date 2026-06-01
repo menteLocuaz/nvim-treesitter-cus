@@ -133,12 +133,7 @@ local function clear_if_stale(bufnr)
     if cc then
       cc:clear()
     end
-    local prefix = tostring(bufnr) .. ':'
-    for k in pairs(default.any_capture_cache) do
-      if k:sub(1, #prefix) == prefix then
-        default.any_capture_cache[k] = nil
-      end
-    end
+    default.any_capture_cache[bufnr] = nil
   end
 end
 
@@ -186,18 +181,22 @@ local function get_indents(bufnr, root, lang, row)
     end
   end
 
-  -- Build any_capture set keyed by (bufnr .. ':' .. lang).
-  local ac_key = bufnr .. ':' .. lang
-  if not default.any_capture_cache[ac_key] then
+  -- Build any_capture set keyed by bufnr then lang.
+  local buf_ac = default.any_capture_cache[bufnr]
+  if not buf_ac then
+    buf_ac = {}
+    default.any_capture_cache[bufnr] = buf_ac
+  end
+  if not buf_ac[lang] then
     local ac = {}
     for _, bucket in pairs(map) do
       for node_id in pairs(bucket) do
         ac[node_id] = true
       end
     end
-    default.any_capture_cache[ac_key] = ac
+    buf_ac[lang] = ac
   end
-  map.any_capture = default.any_capture_cache[ac_key]
+  map.any_capture = buf_ac[lang]
 
   buf_cache:put(cache_key, map)
   return map
@@ -214,12 +213,7 @@ function M.clear_cache(bufnr)
       cc:clear()
     end
     default.changedtick_cache[bufnr] = nil
-    local prefix = tostring(bufnr) .. ':'
-    for k in pairs(default.any_capture_cache) do
-      if k:sub(1, #prefix) == prefix then
-        default.any_capture_cache[k] = nil
-      end
-    end
+    default.any_capture_cache[bufnr] = nil
   else
     default.clock_caches = {}
     default.changedtick_cache = {}

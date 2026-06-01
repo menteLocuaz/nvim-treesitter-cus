@@ -82,7 +82,10 @@ if #updates > 0 then
     if vim.fn.executable('stylua') == 1 then
       parser_file = vim.system({ 'stylua', '-' }, { stdin = parser_file }):wait().stdout --[[@as string]]
     end
-    util.write_file('lua/nvim-treesitter/parsers/list/' .. name:gsub('/', '_') .. '.lua', parser_file)
+    util.write_file(
+      'lua/nvim-treesitter/parsers/list/' .. name:gsub('/', '_') .. '.lua',
+      parser_file
+    )
   end
 
   table.sort(updates)

@@ -1,9 +1,18 @@
+local fn = vim.fn
 local fs = vim.fs
 local uv = vim.uv
 
 local a = require('nvim-treesitter.async')
 
 local M = {}
+
+---Resolves paths relative to the plugin root using the current file's location.
+---@param ... string path segments
+---@return string
+function M.get_package_path(...)
+  local info = assert(debug.getinfo(1, 'S'))
+  return fs.joinpath(fn.fnamemodify(info.source:sub(2), ':p:h:h:h:h'), ...)
+end
 
 ---@type fun(path: string, new_path: string, flags?: table): string?
 local uv_copyfile = a.awrap(4, uv.fs_copyfile)

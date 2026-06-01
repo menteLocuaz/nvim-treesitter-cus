@@ -22,7 +22,7 @@ function LineCache.new(bufnr)
   local self = setmetatable({}, { __index = LineCache })
   self.bufnr = bufnr
   self.cache = {}
-  self.tick = vim.api.nvim_buf_get_changedtick(bufnr)
+  self.tick = vim.b[bufnr].changedtick
   return self
 end
 
@@ -30,7 +30,7 @@ end
 ---@param lnum integer 1-based line number
 ---@return string
 function LineCache:get(lnum)
-  local tick = vim.api.nvim_buf_get_changedtick(self.bufnr)
+  local tick = vim.b[self.bufnr].changedtick
   if self.tick ~= tick then
     self.cache = {}
     self.tick = tick

@@ -9,6 +9,7 @@ local parsers = require('nvim-treesitter.parsers')
 local util = require('nvim-treesitter.util')
 
 local system = require('nvim-treesitter.install.system')
+local install_fs = require('nvim-treesitter.install.fs')
 local install_mod = require('nvim-treesitter.install.install')
 local info_mod = require('nvim-treesitter.install.info')
 local concurrency = require('nvim-treesitter.install.concurrency')
@@ -32,12 +33,7 @@ local function reload_parsers()
   vim.api.nvim_exec_autocmds('User', { pattern = 'TSUpdate' })
 end
 
-local function get_package_path(...)
-  local info = assert(debug.getinfo(1, 'S'))
-  return fs.joinpath(fn.fnamemodify(info.source:sub(2), ':p:h:h:h:h'), ...)
-end
-
-M.get_package_path = get_package_path
+M.get_package_path = install_fs.get_package_path
 
 ---@async
 ---@param languages string[]
@@ -88,7 +84,7 @@ M.update = a.async(function(languages, options)
     languages = 'all'
   end
   languages = config.norm_languages(languages, { missing = true, unsupported = true })
-  local query_src = get_package_path('runtime', 'queries', 'dummy')
+  local query_src = install_fs.get_package_path('runtime', 'queries', 'dummy')
 
   local update_tasks = {}
   local to_update = {}

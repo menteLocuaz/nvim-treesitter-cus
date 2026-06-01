@@ -9,9 +9,15 @@ describe('init module', function()
 
   it('proxies config functions', function()
     local config_mock = {
-      setup = function() return 'setup_called' end,
-      get_available = function() return 'get_available_called' end,
-      get_installed = function() return 'get_installed_called' end,
+      setup = function()
+        return 'setup_called'
+      end,
+      get_available = function()
+        return 'get_available_called'
+      end,
+      get_installed = function()
+        return 'get_installed_called'
+      end,
     }
     package.loaded['nvim-treesitter.config'] = config_mock
 
@@ -22,9 +28,15 @@ describe('init module', function()
 
   it('proxies install functions', function()
     local install_mock = {
-      install = function() return 'install_called' end,
-      uninstall = function() return 'uninstall_called' end,
-      update = function() return 'update_called' end,
+      install = function()
+        return 'install_called'
+      end,
+      uninstall = function()
+        return 'uninstall_called'
+      end,
+      update = function()
+        return 'update_called'
+      end,
     }
     package.loaded['nvim-treesitter.install'] = install_mock
 
@@ -35,7 +47,9 @@ describe('init module', function()
 
   it('indentexpr calls indent.get_indent', function()
     local indent_mock = {
-      get_indent = function(lnum) return lnum * 2 end,
+      get_indent = function(lnum)
+        return lnum * 2
+      end,
     }
     package.loaded['nvim-treesitter.indent'] = indent_mock
     vim.v.lnum = 10
@@ -47,7 +61,7 @@ describe('init module', function()
     -- Temporarily break require for nvim-treesitter.indent
     local old_indent = package.loaded['nvim-treesitter.indent']
     package.loaded['nvim-treesitter.indent'] = nil
-    
+
     -- We need to mock require to fail for this specific module
     local old_require = _G.require
     _G.require = function(mod)

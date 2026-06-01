@@ -24,54 +24,48 @@ function M.norm_languages(languages, skip)
 
   languages = parsers.expand_tiers(languages)
 
-  local installed = nil
+  local installed_set = nil ---@type table<string, true>?
   if skip and (skip.installed or skip.missing) then
     if skip.installed and skip.missing then
       return {}
     end
-    installed = paths.get_installed()
+    local installed_list = paths.get_installed()
+    installed_set = {}
+    for _, v in ipairs(installed_list) do
+      installed_set[v] = true
+    end
   end
 
-  if skip and skip.installed then
-    languages = vim.tbl_filter(
-      --- @param v string
-      function(v)
-        return not vim.list_contains(installed, v)
-      end,
-      languages
-    )
-  elseif skip and skip.missing then
-    languages = vim.tbl_filter(
-      --- @param v string
-      function(v)
-        return vim.list_contains(installed, v)
-      end,
-      languages
-    )
-  end
+  local result = {} ---@type string[]
+  local seen = {} ---@type table<string, boolean>
+  for _, v in ipairs(languages) do
+    if not seen[v] then
+      seen[v] = true
 
-  languages = vim.tbl_filter(
-    --- @param v string
-    function(v)
-      if parsers_mod[v] ~= nil then
-        return true
-      else
-        require('nvim-treesitter.log').warn('skipping unsupported language: ' .. v)
-        return false
+      if skip and skip.installed then
+        if installed_set[v] then
+          goto continue
+        end
+      elseif skip and skip.missing then
+        if not installed_set[v] then
+          goto continue
+        end
       end
-    end,
-    languages
-  )
 
-  if skip and skip.unsupported then
-    languages = vim.tbl_filter(
-      --- @param v string
-      function(v)
-        return not (parsers_mod[v] and parsers_mod[v].tier and parsers_mod[v].tier == 4)
-      end,
-      languages
-    )
+      if skip and skip.unsupported and parsers_mod[v] and parsers_mod[v].tier == 4 then
+        goto continue
+      end
+
+      if parsers_mod[v] == nil then
+        require('nvim-treesitter.log').warn('skipping unsupported language: ' .. v)
+        goto continue
+      end
+
+      result[#result + 1] = v
+    end
+    ::continue::
   end
+  languages = result
 
   if not (skip and skip.dependencies) then
     local seen_deps = {}
@@ -90,15 +84,15 @@ function M.norm_languages(languages, skip)
     vim.list_extend(languages, extra)
   end
 
-  local seen = {}
-  local result = {}
+  local final_seen = {}
+  local final_result = {}
   for _, v in ipairs(languages) do
-    if not seen[v] then
-      seen[v] = true
-      result[#result + 1] = v
+    if not final_seen[v] then
+      final_seen[v] = true
+      final_result[#final_result + 1] = v
     end
   end
-  return result
+  return final_result
 end
 
 return M

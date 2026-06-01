@@ -20,15 +20,10 @@ local INSTALL_TIMEOUT = 60000
 
 local fn = vim.fn
 
--- Resolves paths relative to the plugin root.
--- Shim that delegates to `require('nvim-treesitter.install').get_package_path`.
--- T he `require` statement is lazy (call-timed) to avoid circular dependencies with `install/init.lua`.
----`debug.getinfo(1)` within the canonical function always
----`resolves `install/init.lua`, so the path resolution is identical.s
 ---@param ... string
 ---@return string
 local function get_package_path(...)
-  return require('nvim-treesitter.install').get_package_path(...)
+  return install_fs.get_package_path(...)
 end
 
 ---@async
