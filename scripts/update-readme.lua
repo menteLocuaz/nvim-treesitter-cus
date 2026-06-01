@@ -2,6 +2,7 @@
 vim.o.rtp = vim.o.rtp .. ',.'
 local util = require('nvim-treesitter.util')
 local parsers = require('nvim-treesitter.parsers')
+parsers._load_all()
 local tiers = require('nvim-treesitter.config').tiers
 
 local sorted_parsers = {} ---@type { name: string, parser: ParserInfo }[]

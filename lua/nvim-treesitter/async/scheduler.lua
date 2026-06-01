@@ -4,10 +4,7 @@
 -- re-entrant enqueues (callbacks that enqueue more work) are handled safely
 -- without recursion or stack overflow.
 
--- Prefer coroutine-aware pcall (copcall) if available (e.g., from coxpcall),
--- falling back to standard pcall. This ensures errors inside coroutine-resumed
--- callbacks are caught correctly in environments that need it.
-local pcall = copcall or pcall
+local pcall = pcall
 
 local Scheduler = {}
 Scheduler.__index = Scheduler

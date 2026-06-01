@@ -29,9 +29,6 @@ M.is_installing = concurrency.is_installing
 
 local function reload_parsers()
   config.invalidate_cache()
-  package.loaded['nvim-treesitter.parsers'] = nil
-  ---@diagnostic disable-next-line:duplicate-require
-  parsers = require('nvim-treesitter.parsers')
   vim.api.nvim_exec_autocmds('User', { pattern = 'TSUpdate' })
 end
 

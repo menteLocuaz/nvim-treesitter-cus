@@ -44,4 +44,4 @@ error('Cannot require a meta file')
 ---Explanatory footnote text to add in SUPPORTED_LANGUAGES.md
 ---@field readme_note? string
 
----@alias nvim-ts.parsers table<string,ParserInfo>
+---@alias nvim-ts.parsers table<string,ParserInfo> & { _load_all: fun() }

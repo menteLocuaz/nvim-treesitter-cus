@@ -170,14 +170,9 @@ function M.install_lang(lang, cache_dir, install_dir, force, generate)
   if not force and vim.list_contains(config.get_installed(), lang) then
     return true
   elseif concurrency.is_installing(lang) then
-    local start = uv.now()
-    while concurrency.is_installing(lang) do
-      if uv.now() - start > INSTALL_TIMEOUT then
-        return false
-      end
-      a.sleep(100)
-    end
-    return true
+    return vim.wait(INSTALL_TIMEOUT, function()
+      return not concurrency.is_installing(lang)
+    end)
   else
     concurrency.lock(lang)
     -- pcall frame persists across coroutine yields in Lua 5.1, so

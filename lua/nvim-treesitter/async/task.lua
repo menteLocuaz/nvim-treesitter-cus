@@ -3,9 +3,7 @@
 -- the Scheduler, Future/Promise system, and CancellationToken. Tasks are the
 -- core unit of async execution — every M.async / M.arun call produces one.
 
--- Prefer coroutine-aware pcall if available (e.g., coxpcall), falling back to
--- standard pcall. Needed to correctly catch errors thrown inside coroutines.
-local pcall = copcall or pcall
+local pcall = pcall
 
 local Scheduler = require('nvim-treesitter.async.scheduler')
 local future_mod = require('nvim-treesitter.async.future')
