@@ -10,15 +10,19 @@ function M.read_file(filename)
   return table.concat(result, '\n')
 end
 
+local FILE_MODE = 438 -- 0o644 (rw-r--r--)
+
 ---@param filename string
 ---@param content string
+---@return string? err
 function M.write_file(filename, content)
-  local fd = vim.uv.fs_open(filename, 1 + 64 + 512, 438)
+  local fd, oerr = vim.uv.fs_open(filename, 'w', FILE_MODE)
   if not fd then
-    error('Could not open file for writing: ' .. filename)
+    return oerr or ('Could not open file for writing: ' .. filename)
   end
-  vim.uv.fs_write(fd, content, 0)
+  local _, werr = vim.uv.fs_write(fd, content, 0)
   vim.uv.fs_close(fd)
+  return werr
 end
 
 -- CLOCK cache: O(1) amortized eviction, no array shifts.

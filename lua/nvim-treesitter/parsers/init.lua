@@ -26,7 +26,9 @@ return setmetatable(M, {
   __index = function(_, key)
     if key ~= '_load_all' then
       ensure_loaded()
-      return M[key]
+      -- rawget: M[key] would re-trigger __index for unknown languages,
+      -- causing infinite recursion (stack overflow).
+      return rawget(M, key)
     end
   end,
 })

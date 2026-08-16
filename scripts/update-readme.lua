@@ -72,7 +72,10 @@ local new_readme_text = string.gsub(
   '<!--parserinfo-->\n' .. generated_text .. '<!--parserinfo-->'
 )
 
-util.write_file(readme, new_readme_text)
+local werr = util.write_file(readme, new_readme_text)
+if werr then
+  error(werr)
+end
 
 if string.find(readme_text, generated_text, 1, true) then
   print(readme .. ' is up-to-date\n')

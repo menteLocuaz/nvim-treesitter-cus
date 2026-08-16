@@ -1,5 +1,3 @@
-local echo = vim.api.nvim_echo
-
 local sev_to_hl = {
   trace = 'DiagnosticHint',
   debug = 'Normal',
@@ -29,6 +27,23 @@ local Logger = {}
 
 M.Logger = Logger
 
+local MAX_HISTORY = 1000
+
+---Global capped history with the messages of ALL loggers (including
+---per-language ones), so M.show() can display e.g. install output.
+---@type {[1]: string, [2]: string?, [3]: string}[]
+local history = {}
+
+---@param sev string
+---@param ctx? string
+---@param msg string
+local function record(sev, ctx, msg)
+  history[#history + 1] = { sev, ctx, msg }
+  if #history > MAX_HISTORY then
+    table.remove(history, 1)
+  end
+end
+
 ---@param ctx? string
 ---@return Logger
 function M.new(ctx)
@@ -38,13 +53,17 @@ end
 ---@param m string
 ---@param ... any
 function Logger:trace(m, ...)
-  self.messages[#self.messages + 1] = { 'trace', self.ctx, m:format(...) }
+  local m1 = m:format(...)
+  self.messages[#self.messages + 1] = { 'trace', self.ctx, m1 }
+  record('trace', self.ctx, m1)
 end
 
 ---@param m string
 ---@param ... any
 function Logger:debug(m, ...)
-  self.messages[#self.messages + 1] = { 'debug', self.ctx, m:format(...) }
+  local m1 = m:format(...)
+  self.messages[#self.messages + 1] = { 'debug', self.ctx, m1 }
+  record('debug', self.ctx, m1)
 end
 
 ---@param m string
@@ -52,7 +71,8 @@ end
 function Logger:info(m, ...)
   local m1 = m:format(...)
   self.messages[#self.messages + 1] = { 'info', self.ctx, m1 }
-  echo({ { mkpfx(self.ctx) .. ': ' .. m1, sev_to_hl.info } }, true, {})
+  record('info', self.ctx, m1)
+  vim.api.nvim_echo({ { mkpfx(self.ctx) .. ': ' .. m1, sev_to_hl.info } }, true, {})
 end
 
 ---@param m string
@@ -60,7 +80,8 @@ end
 function Logger:warn(m, ...)
   local m1 = m:format(...)
   self.messages[#self.messages + 1] = { 'warn', self.ctx, m1 }
-  echo({ { mkpfx(self.ctx) .. ' warning: ' .. m1, sev_to_hl.warn } }, true, {})
+  record('warn', self.ctx, m1)
+  vim.api.nvim_echo({ { mkpfx(self.ctx) .. ' warning: ' .. m1, sev_to_hl.warn } }, true, {})
 end
 
 ---@param m string
@@ -69,7 +90,8 @@ end
 function Logger:error(m, ...)
   local m1 = m:format(...)
   self.messages[#self.messages + 1] = { 'error', self.ctx, m1 }
-  echo({ { mkpfx(self.ctx) .. ' error: ' .. m1, sev_to_hl.error } }, true, {})
+  record('error', self.ctx, m1)
+  vim.api.nvim_echo({ { mkpfx(self.ctx) .. ' error: ' .. m1, sev_to_hl.error } }, true, {})
   return m1
 end
 
@@ -85,22 +107,23 @@ setmetatable(M, {
   end,
 })
 
----Show accumulated messages from a logger.
----@param logger? Logger defaults to default_logger
+---Show accumulated log messages.
+---@param logger? Logger if nil, shows the global history of all loggers
 function M.show(logger)
-  logger = logger or default_logger
-  for _, l in ipairs(logger.messages) do
+  local messages = logger and logger.messages or history
+  for _, l in ipairs(messages) do
     local sev, ctx, msg = l[1], l[2], l[3]
     local hl = sev_to_hl[sev]
     local text = ctx and string.format('%s(%s): %s', sev, ctx, msg)
       or string.format('%s: %s', sev, msg)
-    echo({ { text, hl } }, false, {})
+    vim.api.nvim_echo({ { text, hl } }, false, {})
   end
 end
 
----Resets the default logger's message buffer.
+---Resets the global history and the default logger's message buffer.
 ---Does NOT affect instances created via log.new().
 function M._reset()
+  history = {}
   default_logger.messages = {}
 end
 

@@ -6,6 +6,8 @@ local a = require('nvim-treesitter.async')
 
 local M = {}
 
+local DIR_MODE = 493 -- 0o755 (rwxr-xr-x)
+
 ---Resolves paths relative to the plugin root using the current file's location.
 ---@param ... string path segments
 ---@return string
@@ -43,13 +45,13 @@ function M.mkpath(path, logger)
   repeat
     table.insert(dirs, 1, path)
     path = fs.dirname(path)
-  until path == '.' or path == '/' or path:match('^[./]$') or uv.fs_stat(path)
+  until path == '.' or path == '/' or uv.fs_stat(path)
 
   for _, dir in ipairs(dirs) do
     if uv.fs_stat(dir) then
       logger:trace('%s already exists, skipping', dir)
     else
-      local err = uv_mkdir(dir, 493)
+      local err = uv_mkdir(dir, DIR_MODE)
       if err then
         logger:debug('mkdir failed for %s: %s', dir, err)
         return err

@@ -83,10 +83,13 @@ if #updates > 0 then
     if vim.fn.executable('stylua') == 1 then
       content = vim.system({ 'stylua', '-' }, { stdin = content }):wait().stdout --[[@as string]]
     end
-    util.write_file(
+    local werr = util.write_file(
       'lua/nvim-treesitter/parsers/list/' .. name:gsub('/', '_') .. '.lua',
       parser_file
     )
+    if werr then
+      error(werr)
+    end
   end
 
   table.sort(updates)
@@ -106,7 +109,10 @@ if #updates > 0 then
   if vim.fn.executable('stylua') == 1 then
     manifest_file = vim.system({ 'stylua', '-' }, { stdin = manifest_file }):wait().stdout --[[@as string]]
   end
-  util.write_file('lua/nvim-treesitter/parsers/manifest.lua', manifest_file)
+  local merr = util.write_file('lua/nvim-treesitter/parsers/manifest.lua', manifest_file)
+  if merr then
+    error(merr)
+  end
 
   -- pass list to workflow
   local gh_env = os.getenv('GITHUB_ENV')

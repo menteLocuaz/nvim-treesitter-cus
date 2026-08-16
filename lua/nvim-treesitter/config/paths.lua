@@ -17,7 +17,8 @@ end
 function M.get_installed(filter)
   local cache_key = filter or 'all'
   if cache[cache_key] then
-    return cache[cache_key]
+    -- Return a copy so callers can't corrupt the cached table
+    return vim.list_extend({}, cache[cache_key])
   end
 
   local config = require('nvim-treesitter.config')
@@ -49,7 +50,7 @@ function M.get_installed(filter)
   end
 
   cache[cache_key] = result
-  return result
+  return vim.list_extend({}, result)
 end
 
 return M

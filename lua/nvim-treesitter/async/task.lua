@@ -346,6 +346,7 @@ function Task:_resume(...)
         threads[self._thread] = nil
       elseif is_async_handle(r) then
         -- Track the returned handle as the current child so close() can cancel it.
+        ---@cast r async.Handle
         self._current_child = r
       end
     end

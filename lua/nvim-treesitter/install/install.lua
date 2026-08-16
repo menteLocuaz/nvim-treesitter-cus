@@ -7,11 +7,11 @@ local download = require('nvim-treesitter.install.download')
 local concurrency = require('nvim-treesitter.install.concurrency')
 local info = require('nvim-treesitter.install.info')
 local install_fs = require('nvim-treesitter.install.fs')
-local system = require('nvim-treesitter.install.system')
+local errors = require('nvim-treesitter.install.errors')
+local validate = require('nvim-treesitter.install.validate')
 
 local config = require('nvim-treesitter.config')
 local log = require('nvim-treesitter.log')
-local parsers = require('nvim-treesitter.parsers')
 local util = require('nvim-treesitter.util')
 
 local M = {}
@@ -20,18 +20,12 @@ local INSTALL_TIMEOUT = 60000
 
 local fn = vim.fn
 
----@param ... string
----@return string
-local function get_package_path(...)
-  return install_fs.get_package_path(...)
-end
-
 ---@async
 ---@param logger Logger
 ---@param lang string
 ---@param parser string
 ---@param queries string
----@return string? err
+---@return InstallError? err
 function M.uninstall_lang(logger, lang, parser, queries)
   logger:debug('Uninstalling ' .. lang)
 
@@ -40,7 +34,7 @@ function M.uninstall_lang(logger, lang, parser, queries)
     local perr = install_fs.uv_unlink(parser)
     a.schedule()
     if perr then
-      return logger:error(perr)
+      return errors.error(logger, 'install', lang, 'could not unlink parser at ' .. parser, perr)
     end
   end
 
@@ -55,102 +49,178 @@ function M.uninstall_lang(logger, lang, parser, queries)
     end
     a.schedule()
     if qerr then
-      return logger:error(qerr)
+      return errors.error(logger, 'queries', lang, 'could not remove queries at ' .. queries, qerr)
     end
   end
 
   logger:info('Language uninstalled')
 end
 
+--- Best-effort cleanup of a temporary directory: failures are logged at
+--- debug level instead of failing the install.
+---@async
+---@param path string
+---@param logger Logger
+local function cleanup_dir(path, logger)
+  local err = install_fs.rmpath(path, logger)
+  if err then
+    logger:debug('Could not clean up %s: %s', path, err)
+  end
+end
+
+--- Validates that the parser info exists and required tools are available.
+---@async
+---@param lang string
+---@param repo InstallInfo?
+---@param logger Logger
+---@return InstallError? err
+local function validate_install(lang, repo, logger)
+  if not repo then
+    return errors.error(
+      logger,
+      'validate',
+      lang,
+      'no parser configuration registered for this language'
+    )
+  end
+
+  if repo.url ~= nil and not repo.url:match('^.+%://') then
+    return errors.error(
+      logger,
+      'validate',
+      lang,
+      'invalid or missing URL in parser configuration: ' .. tostring(repo.url)
+    )
+  end
+
+  local tools = validate.required_tools(repo)
+  local missing = {}
+  for _, tool in ipairs(tools) do
+    local err = validate.check_executable(tool)
+    if err then
+      missing[#missing + 1] = tool
+      logger:debug('Tool check: %s', err)
+    end
+  end
+  if #missing > 0 then
+    return errors.error(
+      logger,
+      'validate',
+      lang,
+      'missing required tools: ' .. table.concat(missing, ', ')
+    )
+  end
+end
+
+--- Selects how the queries of a language should be installed.
+---@param repo InstallInfo?
+---@param lang string
+---@param cache_dir string
+---@param project_name string
+---@return function? task query task with signature (logger, lang, query_src, query_dir)
+---@return string? query_src
+local function select_query_task(repo, lang, cache_dir, project_name)
+  if repo and repo.queries and repo.path then
+    -- Local parser checkout: link its bundled queries
+    return compile.do_link_queries, fs.joinpath(fs.normalize(repo.path), repo.queries)
+  elseif repo and repo.queries then
+    -- Downloaded tarball: copy its bundled queries
+    return compile.do_copy_queries, fs.joinpath(cache_dir, project_name, repo.queries)
+  end
+  -- Default: link the queries shipped with this plugin, if any
+  local query_src = install_fs.get_package_path('runtime', 'queries', lang)
+  if uv.fs_stat(query_src) then
+    return compile.do_link_queries, query_src
+  end
+end
+
 --- Coordinates language installation: download/compile/install parser and queries.
+--- Each stage can return an InstallError with the stage and language context.
 ---@async
 ---@param lang string
 ---@param cache_dir string
 ---@param install_dir string
 ---@param generate? boolean
 ---@param logger Logger
----@return string? err
+---@return InstallError? err
 function M.try_install_lang(lang, cache_dir, install_dir, generate, logger)
   local repo = info.get_parser_install_info(lang)
   local project_name = 'tree-sitter-' .. lang
-  if repo then
-    local revision = repo.revision
 
-    local compile_location ---@type string
-    if repo.path then
-      compile_location = fs.normalize(repo.path)
-    else
-      local project_dir = fs.joinpath(cache_dir, project_name)
-      install_fs.rmpath(project_dir, logger)
+  local verr = validate_install(lang, repo, logger)
+  if verr then
+    return verr
+  end
 
-      revision = revision or repo.branch or 'main'
+  -- repo is guaranteed non-nil after validation
+  assert(repo, 'validate_install should have caught nil repo')
 
-      local err =
-        download.do_download(logger, repo.url, project_name, cache_dir, revision, project_dir)
-      if err then
-        return err
-      end
-      compile_location = fs.joinpath(cache_dir, project_name)
-    end
+  local revision = repo.revision
 
-    if repo.location then
-      compile_location = fs.joinpath(compile_location, repo.location)
-    end
+  local compile_location ---@type string
+  if repo.path then
+    compile_location = fs.normalize(repo.path)
+  else
+    local project_dir = fs.joinpath(cache_dir, project_name)
+    cleanup_dir(project_dir, logger)
 
-    if repo.generate or generate then
-      local err = compile.do_generate(logger, repo, compile_location)
-      if err then
-        return err
-      end
-    end
+    revision = revision or repo.branch or 'main'
 
-    local err = compile.do_compile(logger, compile_location)
+    local err =
+      download.do_download(logger, lang, repo.url, project_name, cache_dir, revision, project_dir)
     if err then
       return err
     end
+    compile_location = fs.joinpath(cache_dir, project_name)
+  end
 
-    local parser_lib_name = fs.joinpath(compile_location, 'parser.so')
-    local install_location = fs.joinpath(install_dir, lang) .. '.so'
-    err = compile.do_install(logger, parser_lib_name, install_location)
+  if repo.location then
+    compile_location = fs.joinpath(compile_location, repo.location)
+  end
+
+  if repo.generate or generate then
+    local err = compile.do_generate(logger, lang, repo, compile_location)
     if err then
       return err
     end
-
-    local revfile = fs.joinpath(config.get_install_dir('parser-info') or '', lang .. '.revision')
-    util.write_file(revfile, revision or '')
   end
 
-  local query_src = get_package_path('runtime', 'queries', lang)
-  local query_dir = fs.joinpath(config.get_install_dir('queries'), lang)
-  local task ---@type function
-
-  if repo and repo.queries and repo.path then
-    query_src = fs.joinpath(fs.normalize(repo.path), repo.queries)
-    task = compile.do_link_queries
-  elseif repo and repo.queries then
-    query_src = fs.joinpath(cache_dir, project_name, repo.queries)
-    task = compile.do_copy_queries
-  elseif uv.fs_stat(query_src) then
-    task = compile.do_link_queries
+  local err = compile.do_compile(logger, lang, compile_location)
+  if err then
+    return err
   end
 
-  if task then
-    local err = task(logger, query_src, query_dir)
+  local parser_lib_name = fs.joinpath(compile_location, 'parser.so')
+  local install_location = fs.joinpath(install_dir, lang) .. '.so'
+  err = compile.do_install(logger, lang, parser_lib_name, install_location)
+  if err then
+    return err
+  end
+
+  local revfile = fs.joinpath(config.get_install_dir('parser-info'), lang .. '.revision')
+  local werr = util.write_file(revfile, revision or '')
+  if werr then
+    return errors.error(logger, 'install', lang, 'could not write revision file', werr)
+  end
+
+  local query_task, query_src = select_query_task(repo, lang, cache_dir, project_name)
+  if query_task then
+    local query_dir = fs.joinpath(config.get_install_dir('queries'), lang)
+    err = query_task(logger, lang, query_src, query_dir)
     if err then
       return err
     end
   end
 
   if repo and not repo.path then
-    local project_dir = fs.joinpath(cache_dir, project_name)
-    install_fs.rmpath(project_dir, logger)
+    cleanup_dir(fs.joinpath(cache_dir, project_name), logger)
     a.schedule()
   end
 
   logger:info('Language installed')
 end
 
---- Installs a single language parser, handling download/generation/compile/install.
+--- Installs a single language parser, handling validation/download/generate/compile/install.
 --- Thread-safe via 'installing' lock; waits for existing install if concurrent request.
 ---@async
 ---@param lang string
@@ -159,28 +229,31 @@ end
 ---@param force? boolean
 ---@param generate? boolean
 ---@return boolean success
+---@return InstallError? err
 function M.install_lang(lang, cache_dir, install_dir, force, generate)
   local logger = log.new('install/' .. lang)
 
   if not force and vim.list_contains(config.get_installed(), lang) then
-    return true
+    return true, nil
   elseif concurrency.is_installing(lang) then
-    return vim.wait(INSTALL_TIMEOUT, function()
-      return not concurrency.is_installing(lang)
-    end)
+    -- Another task is installing this language: wait (asynchronously) until
+    -- it finishes. Returns false if the lock outlives INSTALL_TIMEOUT.
+    local success = concurrency.wait_unlock(lang, INSTALL_TIMEOUT)
+    return success, nil
   else
     concurrency.lock(lang)
-    -- pcall frame persists across coroutine yields in Lua 5.1, so
-    -- synchronous errors (nil deref, assertion, etc.) are caught here.
-    -- Post-yield errors are handled by the async scheduler's resume guard
-    -- and stored in the Task Future — they do NOT become thrown exceptions.
+    -- pcall frame persists across coroutine yields in LuaJIT, so synchronous
+    -- errors (nil deref, assertion, etc.) and errors re-raised by await are
+    -- both caught here.
     local ok, err = pcall(M.try_install_lang, lang, cache_dir, install_dir, generate, logger)
     concurrency.unlock(lang)
     if not ok then
-      logger:error('Unexpected error during install: %s', tostring(err))
-      return false
+      -- Unexpected Lua error (nil deref, assertion, etc.)
+      local ierr =
+        errors.error(logger, 'install', lang, 'unexpected error during installation', tostring(err))
+      return false, ierr
     end
-    return not err
+    return not err, err
   end
 end
 

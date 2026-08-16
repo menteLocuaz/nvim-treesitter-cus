@@ -5,8 +5,6 @@ local uv = vim.uv
 local a = require('nvim-treesitter.async')
 local config = require('nvim-treesitter.config')
 local log = require('nvim-treesitter.log')
-local parsers = require('nvim-treesitter.parsers')
-local util = require('nvim-treesitter.util')
 
 local system = require('nvim-treesitter.install.system')
 local install_fs = require('nvim-treesitter.install.fs')
@@ -28,6 +26,9 @@ M.is_installing = concurrency.is_installing
 ---@field max_jobs? integer
 ---@field summary? boolean
 
+---Invalidates the installed-parsers cache and notifies TSUpdate listeners.
+---Called AFTER install/update/uninstall so handlers observe fresh state;
+---the public entry points invalidate the cache themselves BEFORE starting.
 local function reload_parsers()
   config.invalidate_cache()
   vim.api.nvim_exec_autocmds('User', { pattern = 'TSUpdate' })
@@ -51,21 +52,29 @@ local function do_install(languages, options)
 
   local tasks = {} ---@type async.TaskFun[]
   local done = 0
+  local install_errors = {} ---@type {lang: string, stage: string}[]
   for _, lang in ipairs(languages) do
     tasks[#tasks + 1] = a.async(--[[@async]] function()
       a.schedule()
-      local success =
+      local success, err =
         install_mod.install_lang(lang, cache_dir, install_dir, options.force, options.generate)
       if success then
         done = done + 1
+      elseif err then
+        install_errors[#install_errors + 1] = { lang = err.lang, stage = err.stage }
       end
     end)
   end
 
   system.join(options.max_jobs or config.get_max_jobs(), tasks)
-  if #tasks > 1 then
+  if #tasks > 0 then
     a.schedule()
-    if options and options.summary then
+    if options.summary then
+      if #install_errors > 0 then
+        for _, e in ipairs(install_errors) do
+          log.warn("Failed to install '%s' parser (error during %s)", e.lang, e.stage)
+        end
+      end
       log.info('Installed %d/%d languages', done, #tasks)
     end
   end
@@ -73,13 +82,17 @@ local function do_install(languages, options)
 end
 
 M.install = a.async(function(languages, options)
-  reload_parsers()
+  options = options or {}
+  config.invalidate_cache()
   languages = config.norm_languages(languages, { unsupported = true })
-  return do_install(languages, options)
+  local ok = do_install(languages, options)
+  reload_parsers()
+  return ok
 end)
 
 M.update = a.async(function(languages, options)
-  reload_parsers()
+  options = options or {}
+  config.invalidate_cache()
   if not languages or #languages == 0 then
     languages = 'all'
   end
@@ -99,19 +112,25 @@ M.update = a.async(function(languages, options)
   system.join(options.max_jobs or config.get_max_jobs(), update_tasks)
   languages = to_update
 
-  local summary = options and options.summary
+  local result ---@type boolean
   if #languages > 0 then
-    return do_install(languages, { force = true, summary = summary, max_jobs = options.max_jobs })
+    result = do_install(
+      languages,
+      { force = true, summary = options.summary, max_jobs = options.max_jobs }
+    )
   else
-    if options and options.summary then
+    if options.summary then
       log.info('All parsers are up-to-date')
     end
-    return true
+    result = true
   end
+  reload_parsers()
+  return result
 end)
 
 M.uninstall = a.async(function(languages, options)
-  vim.api.nvim_exec_autocmds('User', { pattern = 'TSUpdate' })
+  options = options or {}
+  config.invalidate_cache()
   languages = config.norm_languages(languages or 'all', { missing = true, dependencies = true })
 
   local parser_dir = config.get_install_dir('parser')
@@ -121,10 +140,10 @@ M.uninstall = a.async(function(languages, options)
   local tasks = {} ---@type async.TaskFun[]
   local done = 0
   for _, lang in ipairs(languages) do
-    local logger = log.new('uninstall/' .. lang)
     if not vim.list_contains(installed, lang) then
       log.warn('Parser for ' .. lang .. ' is not managed by nvim-treesitter')
     else
+      local logger = log.new('uninstall/' .. lang)
       local parser = fs.joinpath(parser_dir, lang) .. '.so'
       local queries = fs.joinpath(query_dir, lang)
       tasks[#tasks + 1] = a.async(--[[@async]] function()
@@ -136,14 +155,15 @@ M.uninstall = a.async(function(languages, options)
     end
   end
 
-  system.join(config.get_max_jobs(), tasks)
+  system.join(options.max_jobs or config.get_max_jobs(), tasks)
   reload_parsers()
   if #tasks > 1 then
     a.schedule()
-    if options and options.summary then
+    if options.summary then
       log.info('Uninstalled %d/%d languages', done, #tasks)
     end
   end
+  return done == #tasks
 end)
 
 return M
