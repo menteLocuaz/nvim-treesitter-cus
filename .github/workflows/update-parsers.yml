@@ -15,7 +15,7 @@ jobs:
       matrix:
         tier: [1, 2]
     name: Update parsers tier ${{ matrix.tier }}
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
@@ -51,7 +51,7 @@ jobs:
           title: "Update parsers (tier ${{ matrix.tier }}): ${{ env.UPDATED_PARSERS }}"
           body: "[beep boop](https://github.com/peter-evans/create-pull-request)"
           branch: update-parsers-tier-${{ matrix.tier }}
-          base: ${{ github.head_ref }}
+          base: main
 
       - name: Enable Pull Request Automerge
         if: ${{ matrix.tier == 2 }}
