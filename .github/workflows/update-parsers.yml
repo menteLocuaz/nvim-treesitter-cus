@@ -17,11 +17,11 @@ jobs:
     name: Update parsers tier ${{ matrix.tier }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4 # Corregido de v7
         with:
           ref: main
 
-      - uses: actions/create-github-app-token@v3
+      - uses: actions/create-github-app-token@v1 # Corregido de v3
         id: app-token
         with:
           client-id: ${{ vars.TOKEN_ID }}
@@ -42,7 +42,7 @@ jobs:
         run: ./scripts/update-parsers.lua --tier=${{ matrix.tier }}
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@v7 # Corregido de v8
         with:
           add-paths: lua/nvim-treesitter/parsers.lua
           token: ${{ steps.app-token.outputs.token }}
