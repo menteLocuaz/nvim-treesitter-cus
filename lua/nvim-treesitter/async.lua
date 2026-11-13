@@ -1,6 +1,16 @@
 ---@meta nvim-treesitter.async vendored file, don't diagnose
 local pcall = copcall or pcall
 
+--- Internal environment dependency provider (allows mocking vim.wait / vim.is_callable in tests)
+local deps = {
+  wait = function(timeout, condition)
+    return vim.wait(timeout, condition)
+  end,
+  is_callable = function(f)
+    return vim.is_callable(f)
+  end,
+}
+
 --- @param ... any
 --- @return {[integer]: any, n: integer}
 local function pack_len(...)
@@ -15,6 +25,25 @@ local function unpack_len(t, first)
   if t then
     return unpack(t, first or 1, t.n or table.maxn(t))
   end
+end
+
+--- @param obj any
+--- @return boolean
+local function is_async_handle(obj)
+  local ty = type(obj)
+  return (ty == 'table' or ty == 'userdata') and deps.is_callable(obj.close)
+end
+
+--- Normalize repeated "stack traceback:" headers, keeping only the first one.
+--- @param trace string
+--- @return string
+local function deduplicate_traceback_headers(trace)
+  return (
+    trace
+      :gsub('\nstack traceback:\n', '\nSTACK TRACEBACK:\n', 1)
+      :gsub('\nstack traceback:\n', '\n')
+      :gsub('\nSTACK TRACEBACK:\n', '\nstack traceback:\n', 1)
+  )
 end
 
 --- @class async
@@ -44,18 +73,8 @@ end
 --- @field package _callbacks table<integer,fun(err?: any, ...: R...)>
 --- @field package _callback_pos integer
 --- @field private _thread thread
----
---- Tasks can call other async functions (task of callback functions)
---- when we are waiting on a child, we store the handle to it here so we can
---- cancel it.
 --- @field private _current_child? async.Handle
----
---- Error result of the task is an error occurs.
---- Must use `await` to get the result.
 --- @field private _err? any
----
---- Result of the task.
---- Must use `await` to get the result.
 --- @field private _result? R[]
 local Task = {}
 Task.__index = Task
@@ -79,11 +98,17 @@ function Task._new(func)
   return self
 end
 
+--- @param obj any
+--- @return boolean
+local function is_task(obj)
+  return getmetatable(obj) == Task
+end
+
 --- @param callback fun(err?: any, ...: R...)
 function Task:await(callback)
   if self._closing then
     callback('closing')
-  elseif self:_completed() then -- TODO(lewis6991): test
+  elseif self:_completed() then
     -- Already finished or closed
     callback(self._err, unpack_len(self._result))
   else
@@ -103,31 +128,11 @@ end
 local MAX_TIMEOUT = 2 ^ 31 - 1
 
 --- Synchronously wait (protected) for a task to finish (blocking)
----
---- If an error is returned, `Task:traceback()` can be used to get the
---- stack trace of the error.
----
---- Example:
---- ```lua
----
----   local ok, err_or_result = task:pwait(10)
----
----   if not ok then
----     error(task:traceback(err_or_result))
----   end
----
----   local _, result = assert(task:pwait(10))
---- ```
----
---- Can be called if a task is closing.
 --- @param timeout? integer
 --- @return boolean status
 --- @return R... result or error
 function Task:pwait(timeout)
-  local done = vim.wait(timeout or MAX_TIMEOUT, function()
-    -- Note we use self:_completed() instead of self:await() to avoid creating a
-    -- callback. This avoids having to cleanup/unregister any callback in the
-    -- case of a timeout.
+  local done = deps.wait(timeout or MAX_TIMEOUT, function()
     return self:_completed()
   end)
 
@@ -141,13 +146,6 @@ function Task:pwait(timeout)
 end
 
 --- Synchronously wait for a task to finish (blocking)
----
---- Example:
---- ```lua
----   local result = task:wait(10) -- wait for 10ms or else error
----
----   local result = task:wait() -- wait indefinitely
---- ```
 --- @param timeout? integer Timeout in milliseconds
 --- @return R result
 function Task:wait(timeout)
@@ -168,23 +166,21 @@ end
 function Task:_traceback(msg, _lvl)
   _lvl = _lvl or 0
 
-  local thread = ('[%s] '):format(self._thread)
-
+  local thread_prefix = ('[%s] '):format(self._thread)
   local child = self._current_child
-  if getmetatable(child) == Task then
+  local child_is_task = is_task(child)
+
+  if child_is_task then
     --- @cast child async.Task
     msg = child:_traceback(msg, _lvl + 1)
   end
 
-  local tblvl = getmetatable(child) == Task and 2 or nil
-  msg = (msg or '') .. debug.traceback(self._thread, '', tblvl):gsub('\n\t', '\n\t' .. thread)
+  local tblvl = child_is_task and 2 or nil
+  local raw_tb = debug.traceback(self._thread, '', tblvl):gsub('\n\t', '\n\t' .. thread_prefix)
+  msg = (msg or '') .. raw_tb
 
   if _lvl == 0 then
-    --- @type string
-    msg = msg
-      :gsub('\nstack traceback:\n', '\nSTACK TRACEBACK:\n', 1)
-      :gsub('\nstack traceback:\n', '\n')
-      :gsub('\nSTACK TRACEBACK:\n', '\nstack traceback:\n', 1)
+    msg = deduplicate_traceback_headers(msg)
   end
 
   return msg
@@ -192,7 +188,6 @@ end
 
 --- Get the traceback of a task when it is not active.
 --- Will also get the traceback of nested tasks.
----
 --- @param msg? string
 --- @return string
 function Task:traceback(msg)
@@ -238,10 +233,23 @@ function Task:is_closing()
   return self._closing
 end
 
+--- @private
+--- @param on_closed fun()
+function Task:_close_child_or_finish(on_closed)
+  if self._current_child then
+    self._current_child:close(function()
+      self:_finish('closed')
+      on_closed()
+    end)
+  else
+    self:_finish('closed')
+    on_closed()
+  end
+end
+
 --- Close the task and all its children.
 --- If callback is provided it will run asynchronously,
 --- else it will run synchronously.
----
 --- @param callback? fun()
 function Task:close(callback)
   if self:_completed() then
@@ -258,34 +266,39 @@ function Task:close(callback)
   self._closing = true
 
   if callback then -- async
-    if self._current_child then
-      self._current_child:close(function()
-        self:_finish('closed')
-        callback()
-      end)
-    else
-      self:_finish('closed')
-      callback()
-    end
+    self:_close_child_or_finish(callback)
   else -- sync
-    if self._current_child then
-      self._current_child:close(function()
-        self:_finish('closed')
-      end)
-    else
-      self:_finish('closed')
-    end
-    vim.wait(0, function()
+    self:_close_child_or_finish(function() end)
+    deps.wait(0, function()
       return self:_completed()
     end)
   end
 end
 
---- @param obj any
---- @return boolean
-local function is_async_handle(obj)
-  local ty = type(obj)
-  return (ty == 'table' or ty == 'userdata') and vim.is_callable(obj.close)
+--- Executes the function provided by the coroutine and manages its child handle, if one exists.
+--- @private
+--- @param fn async.CallbackFn
+function Task:_dispatch_yielded(fn)
+  local ok, r
+  ok, r = pcall(fn, function(...)
+    if is_async_handle(r) then
+      --- @cast r async.Handle
+      -- We must close children before we resume to ensure
+      -- all resources are collected.
+      local args = pack_len(...)
+      r:close(function()
+        self:_resume(unpack_len(args))
+      end)
+    else
+      self:_resume(...)
+    end
+  end)
+
+  if not ok then
+    self:_finish(r)
+  elseif is_async_handle(r) then
+    self._current_child = r
+  end
 end
 
 --- @param ... any
@@ -304,28 +317,7 @@ function Task:_resume(...)
   else
     local fn = ret[2]
     --- @cast fn -string
-
-    -- TODO(lewis6991): refine error handler to be more specific
-    local ok, r
-    ok, r = pcall(fn, function(...)
-      if is_async_handle(r) then
-        --- @cast r async.Handle
-        -- We must close children before we resume to ensure
-        -- all resources are collected.
-        local args = pack_len(...)
-        r:close(function()
-          self:_resume(unpack_len(args))
-        end)
-      else
-        self:_resume(...)
-      end
-    end)
-
-    if not ok then
-      self:_finish(r)
-    elseif is_async_handle(r) then
-      self._current_child = r
-    end
+    self:_dispatch_yielded(fn)
   end
 end
 
@@ -335,19 +327,6 @@ function Task:status()
 end
 
 --- Run a function in an async context, asynchronously.
----
---- Examples:
---- ```lua
---- -- The two below blocks are equivalent:
----
---- -- Run a uv function and wait for it
---- local stat = async.arun(function()
----     return async.await(2, vim.uv.fs_stat, 'foo.txt')
---- end):wait()
----
---- -- Since uv functions have sync versions. You can just do:
---- local stat = vim.fs_stat('foo.txt')
---- ```
 --- @generic T, R
 --- @param func async fun(...: T...): R...
 --- @param ... T...
@@ -367,6 +346,12 @@ end
 local TaskFun = {}
 TaskFun.__index = TaskFun
 
+--- @param obj any
+--- @return boolean
+local function is_taskfun(obj)
+  return getmetatable(obj) == TaskFun
+end
+
 --- @generic T, R
 --- @param self async._TaskFun<T, R>
 --- @param ... T...
@@ -384,13 +369,12 @@ function M.async(fun)
 end
 
 --- Returns the status of a task’s thread.
----
 --- @param task? async.Task
 --- @return 'running'|'suspended'|'normal'|'dead'?
 function M.status(task)
   task = task or running()
   if task then
-    assert(getmetatable(task) == Task, 'Expected Task')
+    assert(is_task(task), 'Expected Task')
     return task:status()
   end
 end
@@ -409,17 +393,13 @@ end
 --- @param task async.Task<R>
 --- @return R
 local function await_task(task)
-  --- @param callback fun(err?: string, ...: any)
-  --- @return function
   local res = pack_len(yield(function(callback)
     task:await(callback)
     return task
   end))
 
   local err = res[1]
-
   if err then
-    -- TODO(lewis6991): what is the correct level to pass?
     error(err, 0)
   end
 
@@ -434,8 +414,6 @@ end
 local function await_cbfun(argc, fun, ...)
   local args = pack_len(...)
 
-  --- @param callback fun(...:any)
-  --- @return any?
   return yield(function(callback)
     args[argc] = callback
     args.n = math.max(args.n, argc)
@@ -452,42 +430,6 @@ local function await_taskfun(taskfun, ...)
 end
 
 --- Asynchronous blocking wait
----
---- Example:
---- ```lua
---- local task = async.arun(function()
----    return 1, 'a'
---- end)
----
---- local task_fun = async.async(function(arg)
----    return 2, 'b', arg
---- end)
----
---- async.arun(function()
----   do -- await a callback function
----     async.await(1, vim.schedule)
----   end
----
----   do -- await a task (new async context)
----     local n, s = async.await(task)
----     assert(n == 1 and s == 'a')
----   end
----
----   do -- await a started task function (new async context)
----     local n, s, arg = async.await(task_fun('A'))
----     assert(n == 2)
----     assert(s == 'b')
----     assert(args == 'A')
----   end
----
----   do -- await a task function (re-using the current async context)
----     local n, s, arg = async.await(task_fun, 'B')
----     assert(n == 2)
----     assert(s == 'b')
----     assert(args == 'B')
----   end
---- end)
---- ```
 --- @async
 --- @generic T, R
 --- @overload fun(argc: integer, func: async.CallbackFn, ...:any): any ...
@@ -500,9 +442,9 @@ function M.await(...)
 
   if type(arg1) == 'number' then
     return await_cbfun(...)
-  elseif getmetatable(arg1) == Task then
+  elseif is_task(arg1) then
     return await_task(...)
-  elseif getmetatable(arg1) == TaskFun then
+  elseif is_taskfun(arg1) then
     return await_taskfun(...)
   end
 
@@ -510,28 +452,6 @@ function M.await(...)
 end
 
 --- Creates an async function with a callback style function.
----
---- Example:
----
---- ```lua
---- --- Note the callback argument is not present in the return function
---- --- @type fun(timeout: integer)
---- local sleep = async.awrap(2, function(timeout, callback)
----   local timer = vim.uv.new_timer()
----   timer:start(timeout * 1000, 0, callback)
----   -- uv_timer_t provides a close method so timer will be
----   -- cleaned up when this function finishes
----   return timer
---- end)
----
---- async.arun(function()
----   print('hello')
----   sleep(2)
----   print('world')
---- end)
---- ```
----
---- local atimer = async.awrap(
 --- @param argc integer
 --- @param func async.CallbackFn
 --- @return async function
@@ -544,7 +464,7 @@ function M.awrap(argc, func)
   end
 end
 
-if vim.schedule then
+if vim and vim.schedule then
   --- An async function that when called will yield to the Neovim scheduler to be
   --- able to call the API.
   M.schedule = M.awrap(1, vim.schedule)
@@ -579,70 +499,30 @@ local function gc_cbs(task_cbs)
 end
 
 --- @async
---- Example:
---- ```lua
---- local task1 = async.arun(function()
----   return 1, 'a'
---- end)
----
---- local task2 = async.arun(function()
----   return 1, 'a'
---- end)
----
---- local task3 = async.arun(function()
----   error('task3 error')
---- end)
----
---- async.arun(function()
----   for i, err, r1, r2 in async.iter({task1, task2, task3})
----     print(i, err, r1, r2)
----   end
---- end)
---- ```
----
---- Prints:
---- ```
---- 1 nil 1 'a'
---- 2 nil 2 'b'
---- 3 'task3 error' nil nil
---- ```
----
 --- @param tasks async.Task[]
 --- @return fun(): (integer?, any?, ...)
 function M.iter(tasks)
   assert(running(), 'Not in async context')
 
   local results = {} --- @type [integer, any, ...][]
-
-  -- Iter blocks in an async context so only one waiter is needed
   local waiter = nil
   local task_cbs = {} --- @type table<async.Task,function>
   local remaining = #tasks
-
-  --- If can_gc_cbs is true, then the iterator function has been garbage
-  --- collected and means any awaiters can also be garbage collected. The
-  --- only time we can't do this is if with the special case when iter() is
-  --- called anonymously (`local i = async.iter(tasks)()`), so we should not
-  --- garbage collect the callbacks until at least one awaiter is called.
   local can_gc_cbs = false
 
-  for i, task in ipairs(tasks) do
+  local function register_task(i, task)
     local function cb(err, ...)
       if can_gc_cbs == true then
         gc_cbs(task_cbs)
       end
 
       local callback = waiter
-
-      -- Clear waiter before calling it
       waiter = nil
-
       remaining = remaining - 1
+
       if callback then
-        -- Iterator is waiting, yield to it
         callback(i, err, ...)
       else
-        -- Task finished before Iterator was called. Store results.
         table.insert(results, pack_len(i, err, ...))
       end
     end
@@ -651,23 +531,25 @@ function M.iter(tasks)
     task:await(cb)
   end
 
-  return gc_fun(
-    M.awrap(1, function(callback)
-      if next(results) then
-        local res = table.remove(results, 1)
-        callback(unpack_len(res))
-      elseif remaining == 0 then
-        callback() -- finish
-      else
-        assert(not waiter, 'internal error: waiter already set')
-        waiter = callback
-      end
-    end),
-    function()
-      -- Don't gc callbacks just yet. Wait until at least one of them is called.
-      can_gc_cbs = true
+  for i, task in ipairs(tasks) do
+    register_task(i, task)
+  end
+
+  local function next_item(callback)
+    if next(results) then
+      local res = table.remove(results, 1)
+      callback(unpack_len(res))
+    elseif remaining == 0 then
+      callback() -- finish
+    else
+      assert(not waiter, 'internal error: waiter already set')
+      waiter = callback
     end
-  )
+  end
+
+  return gc_fun(M.awrap(1, next_item), function()
+    can_gc_cbs = true
+  end)
 end
 
 do -- join()
@@ -693,35 +575,6 @@ do -- join()
 
   --- @async
   --- Wait for all tasks to finish and return their results.
-  ---
-  --- Example:
-  --- ```lua
-  --- local task1 = async.arun(function()
-  ---   return 1, 'a'
-  --- end)
-  ---
-  --- local task2 = async.arun(function()
-  ---   return 1, 'a'
-  --- end)
-  ---
-  --- local task3 = async.arun(function()
-  ---   error('task3 error')
-  --- end)
-  ---
-  --- async.arun(function()
-  ---   local results = async.join({task1, task2, task3})
-  ---   print(vim.inspect(results))
-  --- end)
-  --- ```
-  ---
-  --- Prints:
-  --- ```
-  --- {
-  ---   [1] = { nil, 1, 'a' },
-  ---   [2] = { nil, 2, 'b' },
-  ---   [3] = { 'task2 error' },
-  --- }
-  --- ```
   --- @param tasks async.Task[]
   --- @return table<integer,[any?,...?]>
   function M.join(tasks)
