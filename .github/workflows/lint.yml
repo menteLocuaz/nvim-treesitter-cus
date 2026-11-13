@@ -12,9 +12,13 @@ on:
 jobs:
   lua:
     name: Lint Lua files
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest # Corregido de ubuntu-slim
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4 # Corregido de v7
+
+      # - uses: leafo/gh-actions-lua@v10
+      #   with:
+      #     luaVersion: "5.1"
 
       - name: Format
         run: |
@@ -26,9 +30,9 @@ jobs:
 
   queries:
     name: Lint query files
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest # Corregido de ubuntu-slim
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4 # Corregido de v7
 
       - name: Format
         run: |
@@ -40,9 +44,9 @@ jobs:
 
   readme:
     name: Lint docs
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest # Corregido de ubuntu-slim
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4 # Corregido de v7
 
       - name: Check SUPPORTED_LANGUAGES
         run: |
