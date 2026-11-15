@@ -415,12 +415,7 @@ function M.get_indent(lnum, _ctx)
 
     -- Aligned indent
     local align_meta = q['indent.align'][node_id]
-    if
-      should_process
-      and align_meta
-      and (srow ~= erow or is_in_err)
-      and (srow ~= target_row)
-    then
+    if should_process and align_meta and (srow ~= erow or is_in_err) and (srow ~= target_row) then
       local aligned_processed, indent_is_absolute
       indent, aligned_processed, indent_is_absolute =
         compute_aligned_indent(bufnr, node, lnum, indent, indent_size, align_meta, ctx)
