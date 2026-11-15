@@ -13,13 +13,16 @@ local config = {
 ---Setup call for users to override configuration configurations.
 ---@param user_data TSConfig? user configuration table
 function M.setup(user_data)
-  if user_data then
-    if user_data.install_dir then
-      user_data.install_dir = vim.fs.normalize(user_data.install_dir)
-      vim.o.rtp = user_data.install_dir .. ',' .. vim.o.rtp
-    end
-    config = vim.tbl_deep_extend('force', config, user_data)
+  if not user_data then
+    return
   end
+
+  if user_data.install_dir then
+    user_data.install_dir = vim.fs.normalize(user_data.install_dir)
+    vim.o.rtp = user_data.install_dir .. ',' .. vim.o.rtp
+  end
+
+  config = vim.tbl_deep_extend('force', config, user_data)
 end
 
 -- Returns the install path for parsers, parser info, and queries.
@@ -32,10 +35,10 @@ function M.get_install_dir(dir_name)
   if not vim.uv.fs_stat(dir) then
     local ok, err = pcall(vim.fn.mkdir, dir, 'p', '0755')
     if not ok then
-      local log = require('nvim-treesitter.log')
-      log.error(err --[[@as string]])
+      require('nvim-treesitter.log').error(err --[[@as string]])
     end
   end
+
   return dir
 end
 
@@ -43,16 +46,19 @@ end
 ---@return string[]
 function M.get_installed(type)
   local installed = {} --- @type table<string, boolean>
-  if not (type and type == 'parsers') then
+
+  if type ~= 'parsers' then
     for f in vim.fs.dir(M.get_install_dir('queries')) do
       installed[f] = true
     end
   end
-  if not (type and type == 'queries') then
+
+  if type ~= 'queries' then
     for f in vim.fs.dir(M.get_install_dir('parser')) do
       installed[vim.fn.fnamemodify(f, ':r')] = true
     end
   end
+
   return vim.tbl_keys(installed)
 end
 
@@ -62,36 +68,38 @@ end
 function M.get_available(tier)
   vim.api.nvim_exec_autocmds('User', { pattern = 'TSUpdate' })
   local parsers = require('nvim-treesitter.parsers')
+
   --- @type string[]
   local languages = vim.tbl_keys(parsers)
-  table.sort(languages)
+
   if tier then
-    languages = vim.tbl_filter(
-      --- @param p string
-      function(p)
-        return parsers[p] ~= nil and parsers[p].tier == tier
-      end,
-      languages
-    )
+    languages = vim.tbl_filter(function(p)
+      return parsers[p].tier == tier
+    end, languages)
   end
+
+  table.sort(languages)
   return languages
 end
 
 local function expand_tiers(list)
+  -- Creamos un Set (Hash Map) para búsquedas O(1) de los tiers
+  local tier_map = {}
   for i, tier in ipairs(M.tiers) do
-    if vim.list_contains(list, tier) then
-      list = vim.tbl_filter(
-        --- @param l string
-        function(l)
-          return l ~= tier
-        end,
-        list
-      )
-      vim.list_extend(list, M.get_available(i))
+    tier_map[tier] = i
+  end
+
+  local expanded = {}
+  for _, item in ipairs(list) do
+    local tier_idx = tier_map[item]
+    if tier_idx then
+      vim.list_extend(expanded, M.get_available(tier_idx))
+    else
+      table.insert(expanded, item)
     end
   end
 
-  return list
+  return expanded
 end
 
 ---Normalize languages
@@ -101,12 +109,12 @@ end
 function M.norm_languages(languages, skip)
   if not languages then
     return {}
-  elseif type(languages) == 'string' then
-    languages = { languages }
   end
+  languages = type(languages) == 'string' and { languages } or languages
+  skip = skip or {}
 
   if vim.list_contains(languages, 'all') then
-    if skip and skip.missing then
+    if skip.missing then
       return M.get_installed()
     end
     languages = M.get_available()
@@ -114,57 +122,58 @@ function M.norm_languages(languages, skip)
 
   languages = expand_tiers(languages)
 
-  if skip and skip.installed then
-    local installed = M.get_installed()
-    languages = vim.tbl_filter(
-      --- @param v string
-      function(v)
-        return not vim.list_contains(installed, v)
-      end,
-      languages
-    )
-  end
-
-  if skip and skip.missing then
-    local installed = M.get_installed()
-    languages = vim.tbl_filter(
-      --- @param v string
-      function(v)
-        return vim.list_contains(installed, v)
-      end,
-      languages
-    )
+  -- Convertimos la lista a un Set (Hash Map) para evitar iteraciones anidadas O(N^2)
+  local installed_set
+  if skip.installed or skip.missing then
+    installed_set = {}
+    for _, lang in ipairs(M.get_installed()) do
+      installed_set[lang] = true
+    end
   end
 
   local parsers = require('nvim-treesitter.parsers')
-  languages = vim.tbl_filter(
-    --- @param v string
-    function(v)
-      if parsers[v] ~= nil then
-        return true
-      else
-        require('nvim-treesitter.log').warn('skipping unsupported language: ' .. v)
-        return false
-      end
-    end,
-    languages
-  )
+  local log = require('nvim-treesitter.log')
 
-  if skip and skip.unsupported then
-    languages = vim.tbl_filter(
-      --- @param v string
-      function(v)
-        return not (parsers[v] and parsers[v].tier and parsers[v].tier == 4)
-      end,
-      languages
-    )
-  end
+  -- Consolidamos las 4 pasadas de filtrado en un Single-Pass O(N)
+  languages = vim.tbl_filter(function(lang)
+    if skip.installed and installed_set[lang] then
+      return false
+    end
+    if skip.missing and not installed_set[lang] then
+      return false
+    end
 
-  if not (skip and skip.dependencies) then
-    for _, lang in pairs(languages) do
-      if parsers[lang] and parsers[lang].requires then
-        vim.list_extend(languages, parsers[lang].requires)
+    local parser = parsers[lang]
+    if not parser then
+      log.warn('skipping unsupported language: ' .. lang)
+      return false
+    end
+
+    if skip.unsupported and parser.tier == 4 then
+      return false
+    end
+
+    return true
+  end, languages)
+
+  if not skip.dependencies then
+    local seen = {} ---@type table<string, boolean>
+    for _, lang in ipairs(languages) do
+      seen[lang] = true
+    end
+
+    local i = 1
+    while i <= #languages do
+      local parser = parsers[languages[i]]
+      if parser and parser.requires then
+        for _, dependency in ipairs(parser.requires) do
+          if not seen[dependency] then
+            seen[dependency] = true
+            languages[#languages + 1] = dependency
+          end
+        end
       end
+      i = i + 1
     end
   end
 
