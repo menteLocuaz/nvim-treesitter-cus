@@ -21,7 +21,7 @@ jobs:
         with:
           ref: main
 
-      - uses: actions/create-github-app-token@v1 # Corregido de v3
+      - uses: actions/create-github-app-token@v3 # Corregido de v3
         id: app-token
         with:
           client-id: ${{ vars.TOKEN_ID }}
