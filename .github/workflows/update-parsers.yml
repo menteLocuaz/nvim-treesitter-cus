@@ -17,7 +17,7 @@ jobs:
     name: Update parsers tier ${{ matrix.tier }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # Corregido de v7
+      - uses: actions/checkout@v7 # Corregido de v7
         with:
           ref: main
 
