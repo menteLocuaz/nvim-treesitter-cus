@@ -1,12 +1,13 @@
--- ======================================================================
--- 1. SETUP Y MOCKS
--- ======================================================================
-local M = require('nvim-treesitter.util') 
 
--- We are keeping the original to restore it later.
+-- ======================================================================
+-- 1. SETUP AND MOCKS
+-- ======================================================================
+local M = require('nvim-treesitter.util')
+
+-- We keep the original function so we can restore it later.
 local original_io_open = io.open
 
--- Variables for spying on behavior (Spies)
+-- Variables for spying on behavior (Spies).
 local mock_state = {
   is_closed = false,
   read_result = nil,
@@ -18,7 +19,7 @@ local mock_state = {
   written_content = ""
 }
 
--- We create a mock of a Lua "file" object.
+-- We create a mock Lua file object.
 local file_mock = {
   read = function(self, mode)
     if mock_state.read_result then return mock_state.read_result end
@@ -38,9 +39,9 @@ local file_mock = {
 
 -- We replace the global I/O function.
 local function setup_mock(state_overrides)
-  -- Reset state
+  -- Reset the state.
   mock_state.is_closed = false
-  mock_state.read_result = "contenido de prueba"
+  mock_state.read_result = "test content"
   mock_state.read_error = nil
   mock_state.write_success = true
   mock_state.write_error = nil
@@ -48,9 +49,11 @@ local function setup_mock(state_overrides)
   mock_state.open_error = "File not found"
   mock_state.written_content = ""
 
-  -- Apply overrides
+  -- Apply state overrides.
   if state_overrides then
-    for k, v in pairs(state_overrides) do mock_state[k] = v end
+    for k, v in pairs(state_overrides) do
+      mock_state[k] = v
+    end
   end
 
   io.open = function(path, mode)
@@ -65,7 +68,7 @@ local function teardown_mock()
   io.open = original_io_open
 end
 
---Utility function for error catching and testing pcalls
+-- Utility function for catching errors and testing pcall.
 local function assert_throws(fn, expected_match, msg)
   local ok, err = pcall(fn)
   assert(not ok, msg .. " (It should have thrown an error)")
@@ -76,58 +79,58 @@ end
 -- 2. TEST SUITE
 -- ======================================================================
 
-local function test_read_file_camino_feliz()
+local function test_read_file_happy_path()
   setup_mock({ read_result = "hello world" })
-  
+
   local content = M.read_file("test.txt")
-  
+
   assert(content == "hello world", "It must return the file content")
   assert(mock_state.is_closed == true, "The file MUST be closed after reading")
 end
 
-local function test_read_file_no_existe()
+local function test_read_file_does_not_exist()
   setup_mock({ should_open = false, open_error = "No such file or directory" })
-  
+
   assert_throws(
-    function() M.read_file("fantasma.txt") end,
+    function() M.read_file("ghost.txt") end,
     "No such file",
-    "Fallo: It should throw an error if the file does not exist."
+    "Failure: It should throw an error if the file does not exist."
   )
-  assert(mock_state.is_closed == false, "No attempt was made to close a file that was not opened.")
+  assert(mock_state.is_closed == false, "No attempt should be made to close a file that was never opened.")
 end
 
-local function test_write_file_camino_feliz()
+local function test_write_file_happy_path()
   setup_mock()
-  
+
   M.write_file("test.txt", "new text")
-  
-  assert(mock_state.written_content == "new text", "You must write the exact text.")
+
+  assert(mock_state.written_content == "new text", "It must write the exact text.")
   assert(mock_state.is_closed == true, "The file MUST be closed after writing.")
 end
 
-local function test_write_file_falla_escritura()
-  -- Simulamos un caso donde el disco está lleno
+local function test_write_file_write_failure()
+  -- Simulate a case where the disk is full.
   setup_mock({ write_success = false, write_error = "No space left on device" })
-  
+
   assert_throws(
     function() M.write_file("test.txt", "text") end,
     "No space left",
-    "Failure: Must throw an error if the write operation fails."
+    "Failure: It must throw an error if the write operation fails."
   )
-  assert(mock_state.is_closed == true, "PROPERTY: The file must be closed EVEN if the write operation fails, so as not to leave orphaned descriptors.")
+  assert(mock_state.is_closed == true, "PROPERTY: The file must be closed EVEN if the write operation fails, to avoid leaving orphaned file descriptors.")
 end
 
 -- ======================================================================
--- 3. EJECUCIÓN
+-- 3. TEST EXECUTION
 -- ======================================================================
 local function run_tests()
   print("Running I/O tests...")
-  test_read_file_camino_feliz()
-  test_read_file_no_existe()
-  test_write_file_camino_feliz()
-  test_write_file_falla_escritura()
+  test_read_file_happy_path()
+  test_read_file_does_not_exist()
+  test_write_file_happy_path()
+  test_write_file_write_failure()
   teardown_mock()
-  print("✅ All tests have passed successfully..")
+  print("✅ All tests passed successfully.")
 end
 
 run_tests()
