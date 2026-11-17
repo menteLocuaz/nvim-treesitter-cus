@@ -1,6 +1,6 @@
-local echo = vim.api.nvim_echo
+local M = {}
 
--- TODO(lewis6991): write these out to a file
+-- TODO(lewis6991): Write these messages to a file.
 local messages = {} --- @type {[1]: string, [2]: string?, [3]: string}[]
 
 local sev_to_hl = {
@@ -17,83 +17,100 @@ local function mkpfx(ctx)
   return ctx and string.format('[nvim-treesitter/%s]', ctx) or '[nvim-treesitter]'
 end
 
----@class TSLogModule
----@field trace fun(fmt: string, ...: any)
----@field debug fun(fmt: string, ...: any)
----@field info fun(fmt: string, ...: any)
----@field warn fun(fmt: string, ...: any)
----@field error fun(fmt: string, ...: any)
-local M = {}
-
 ---@class Logger
 ---@field ctx? string
 local Logger = {}
+Logger.__index = Logger
 
 M.Logger = Logger
 
 ---@param ctx? string
 ---@return Logger
 function M.new(ctx)
-  return setmetatable({ ctx = ctx }, { __index = Logger })
+  return setmetatable({ ctx = ctx }, Logger)
 end
 
+-- =====================================================================
+-- Internal Helpers: Standardization and Code Reuse
+-- =====================================================================
+
+---@param self Logger
+---@param sev string
 ---@param m string
 ---@param ... any
+---@return string formatted_msg
+local function process_log(self, sev, m, ...)
+  local formatted = m:format(...)
+  messages[#messages + 1] = { sev, self.ctx, formatted }
+  return formatted
+end
+
+---@param ctx string?
+---@param sev string
+---@param msg string
+---@param label string?
+local function echo_log(ctx, sev, msg, label)
+  local hl = sev_to_hl[sev]
+  local prefix = mkpfx(ctx)
+
+  local text = label and string.format('%s %s: %s', prefix, label, msg)
+                      or string.format('%s: %s', prefix, msg)
+
+  -- Call vim.api directly instead of using a local alias
+  -- to allow dependency injection and mocking in tests.
+  vim.api.nvim_echo({ { text, hl } }, true, {})
+end
+
+-- =====================================================================
+-- Logger Instance Methods
+-- =====================================================================
+
 function Logger:trace(m, ...)
-  messages[#messages + 1] = { 'trace', self.ctx, m:format(...) }
+  process_log(self, 'trace', m, ...)
 end
 
----@param m string
----@param ... any
 function Logger:debug(m, ...)
-  messages[#messages + 1] = { 'debug', self.ctx, m:format(...) }
+  process_log(self, 'debug', m, ...)
 end
 
----@param m string
----@param ... any
 function Logger:info(m, ...)
-  local m1 = m:format(...)
-  messages[#messages + 1] = { 'info', self.ctx, m1 }
-  echo({ { mkpfx(self.ctx) .. ': ' .. m1, sev_to_hl.info } }, true, {})
+  local msg = process_log(self, 'info', m, ...)
+  echo_log(self.ctx, 'info', msg)
 end
 
----@param m string
----@param ... any
 function Logger:warn(m, ...)
-  local m1 = m:format(...)
-  messages[#messages + 1] = { 'warn', self.ctx, m1 }
-  echo({ { mkpfx(self.ctx) .. ' warning: ' .. m1, sev_to_hl.warn } }, true, {})
+  local msg = process_log(self, 'warn', m, ...)
+  echo_log(self.ctx, 'warn', msg, 'warning')
 end
 
----@param m string
----@param ... any
----@return string
 function Logger:error(m, ...)
-  local m1 = m:format(...)
-  messages[#messages + 1] = { 'error', self.ctx, m1 }
-  echo({ { mkpfx(self.ctx) .. ' error: ' .. m1, sev_to_hl.error } }, true, {})
-  return m1
+  local msg = process_log(self, 'error', m, ...)
+  echo_log(self.ctx, 'error', msg, 'error')
+  return msg
 end
 
+-- =====================================================================
+-- Global Interface (Context-Free Fallback)
+-- =====================================================================
 local noctx_logger = M.new()
 
-setmetatable(M, {
-  __index = function(t, k)
-    --- @diagnostic disable-next-line:no-unknown
-    t[k] = function(...)
-      return noctx_logger[k](noctx_logger, ...)
-    end
-    return t[k]
-  end,
-})
+-- Define methods explicitly instead of using magic metatables
+-- to provide autocompletion and static analysis through the LSP.
+function M.trace(...) return noctx_logger:trace(...) end
+function M.debug(...) return noctx_logger:debug(...) end
+function M.info(...)  return noctx_logger:info(...) end
+function M.warn(...)  return noctx_logger:warn(...) end
+function M.error(...) return noctx_logger:error(...) end
 
 function M.show()
   for _, l in ipairs(messages) do
     local sev, ctx, msg = l[1], l[2], l[3]
     local hl = sev_to_hl[sev]
+
     local text = ctx and string.format('%s(%s): %s', sev, ctx, msg)
-      or string.format('%s: %s', sev, msg)
-    echo({ { text, hl } }, false, {})
+                      or string.format('%s: %s', sev, msg)
+
+    vim.api.nvim_echo({ { text, hl } }, false, {})
   end
 end
 
