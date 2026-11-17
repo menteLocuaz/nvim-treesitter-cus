@@ -2,8 +2,19 @@ on:
   workflow_call:
     inputs:
       type:
+        description: "Type of compilation"
         type: string
+        default: "build"
+
   workflow_dispatch:
+    inputs:
+      type:
+        description: "Type of compilation"
+        type: choice
+        options:
+          - build
+          - generate
+        default: "build"
 
 defaults:
   run:
@@ -11,48 +22,54 @@ defaults:
 
 jobs:
   check_compilation:
+    name: ${{ matrix.nvim_tag }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         nvim_tag: [stable, nightly]
-    name: ${{matrix.nvim_tag}} / ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+
+    # Define job-level environment variables for better clarity.
     env:
-      NVIM: ${{ matrix.os == 'windows-latest' && 'nvim-win64\\bin\\nvim.exe' || 'nvim' }}
+      NVIM: ${{ runner.os == 'Windows' && 'nvim-win64\bin\nvim.exe' || 'nvim' }}
+      NVIM_TAG: ${{ matrix.nvim_tag }}
+
     steps:
-      - uses: actions/checkout@v7
-      - uses: tree-sitter/setup-action/cli@v2
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Tree-sitter CLI
+        uses: tree-sitter/setup-action/cli@v2
 
       - name: Install and prepare Neovim
-        env:
-          NVIM_TAG: ${{ matrix.nvim_tag }}
-        run: |
-          bash ./scripts/ci-install.sh
+        run: bash ./scripts/ci-install.sh
 
-      - if: inputs.type == 'build'
-        name: Compile parsers
+      # If inputs.type is empty for any reason, default to 'build' as a safe fallback.
+      - name: Compile parsers
+        if: ${{ inputs.type == 'build' || inputs.type == '' }}
         run: $NVIM -l ./scripts/install-parsers.lua --max-jobs=10
 
-      - if: inputs.type == 'generate'
-        name: Generate and compile parsers
+      - name: Generate and compile parsers
+        if: ${{ inputs.type == 'generate' }}
         run: $NVIM -l ./scripts/install-parsers.lua --generate --max-jobs=10
 
       - name: Check parsers
         run: $NVIM -l ./scripts/check-parsers.lua
 
+      # Use runner.os instead of matrix.os for platform-specific conditions.
       - name: Check queries (nvim)
-        if: ${{ matrix.os == 'windows-latest' }}
+        if: ${{ runner.os == 'Windows' }}
         run: $NVIM -l ./scripts/check-queries.lua
 
       - name: Check queries (tsqueryls)
-        if: ${{ matrix.os != 'windows-latest' }}
+        if: ${{ runner.os != 'Windows' }}
         run: make checkquery
 
       - name: Run highlight tests
-        if: ${{ matrix.os != 'windows-latest' }}
+        if: ${{ runner.os != 'Windows' }}
         run: make tests TESTS=query NVIM_BIN=$NVIM
 
       - name: Run indents tests
-        if: ${{ matrix.os != 'windows-latest' }}
+        if: ${{ runner.os != 'Windows' }}
         run: make tests TESTS=indent NVIM_BIN=$NVIM
