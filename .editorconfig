@@ -1,20 +1,35 @@
+# Root EditorConfig file
 root = true
 
+# Default settings for all files
 [*]
 indent_style = space
 indent_size = 2
 tab_width = 8
 end_of_line = lf
 insert_final_newline = true
+trim_trailing_whitespace = true
 charset = utf-8
 
+# Lua files
 [*.lua]
 tab_width = 2
 
+# Python files
 [*.py]
 indent_size = 4
 tab_width = 4
 
+# C/C++ files (Common when working with Tree-sitter parsers)
+[*.{c,h,cpp,hpp}]
+indent_size = 4
+tab_width = 4
+
+# Markdown files
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefiles and Vim runtime documentation
 [{Makefile,**/Makefile,runtime/doc/*.txt}]
 indent_style = tab
 indent_size = 8
