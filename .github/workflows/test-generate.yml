@@ -1,20 +1,34 @@
+
 name: Tests
 
 on:
   pull_request:
-    types: [unlabeled, labeled, opened, synchronize, reopened]
+    # Group events by code lifecycle first, followed by metadata (labels).
+    types: [opened, synchronize, reopened, labeled, unlabeled]
     branches:
-      - "main"
+      - main
+
   workflow_dispatch:
 
+# Best Practice: Principle of Least Privilege.
+permissions:
+  contents: read
+
 concurrency:
-  group: ${{ github.workflow }}-generate-${{ github.ref }}
+  # Scalability: Dynamically use head_ref (PRs) or ref (manual runs)
+  # instead of a generic 'github.ref' or hardcoded strings.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check_compilation:
     name: Generate
-    if: contains(github.event.pull_request.labels.*.name, 'ci:generate') || github.event_name == 'workflow_dispatch'
+
+    # Readability: Use the folded block scalar (>) to avoid horizontal scrolling.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'ci:generate')
+
     uses: ./.github/workflows/test-core.yml
     with:
-      type: "generate"
+      type: generate
