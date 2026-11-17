@@ -328,7 +328,7 @@ function M.get_indent(lnum, _ctx)
   parser:parse({ ctx.line('w0') - 1, ctx.line('w$') })
 
   local root, lang_tree = find_smallest_lang_tree(parser, lnum, ctx)
-  if not root then
+  if not root or not lang_tree then
     return 0
   end
 
@@ -336,7 +336,7 @@ function M.get_indent(lnum, _ctx)
   local q = get_indents(ctx.get_current_buf(), root, lang_tree:lang(), ctx)
   local node = get_initial_node(root, lnum, q, ctx)
 
-  local indent_size = ctx.shiftwidth()
+  local indent_size = ctx.shiftwidth() --[[@as integer]]
   local indent = 0
   local _, _, root_start = root:start()
   if root_start ~= 0 then
@@ -387,7 +387,7 @@ function M.get_indent(lnum, _ctx)
         or (q['indent.dedent'][node_id] and srow ~= target_row)
       )
     then
-      indent = indent - indent_size
+      indent = (indent - indent_size) --[[@as integer]]
       is_processed = true
     end
 

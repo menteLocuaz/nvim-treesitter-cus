@@ -74,7 +74,7 @@ function M.get_available(tier)
 
   if tier then
     languages = vim.tbl_filter(function(p)
-      return parsers[p].tier == tier
+      return parsers[p] ~= nil and parsers[p].tier == tier
     end, languages)
   end
 
@@ -110,7 +110,9 @@ function M.norm_languages(languages, skip)
   if not languages then
     return {}
   end
-  languages = type(languages) == 'string' and { languages } or languages
+  if type(languages) == 'string' then
+    languages = { languages }
+  end
   skip = skip or {}
 
   if vim.list_contains(languages, 'all') then
@@ -123,9 +125,8 @@ function M.norm_languages(languages, skip)
   languages = expand_tiers(languages)
 
   -- Convertimos la lista a un Set (Hash Map) para evitar iteraciones anidadas O(N^2)
-  local installed_set
+  local installed_set = {} ---@type table<string, boolean>
   if skip.installed or skip.missing then
-    installed_set = {}
     for _, lang in ipairs(M.get_installed()) do
       installed_set[lang] = true
     end
