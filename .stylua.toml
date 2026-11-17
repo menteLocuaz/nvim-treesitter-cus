@@ -1,6 +1,21 @@
-column_width = 100
+# ==========================================
+# Global environment configuration
+# ==========================================
 line_endings = "Unix"
+column_width = 100
+
+# ==========================================
+# Indentation and spacing (Synchronized with .editorconfig)
+# ==========================================
 indent_type = "Spaces"
 indent_width = 2
+
+# ==========================================
+# Neovim/Lua code style and conventions
+# ==========================================
 quote_style = "AutoPreferSingle"
 call_parentheses = "Always"
+
+# Prevent StyLua from collapsing "early returns" into a single line.
+# Keeps Git diffs clean and readable during code reviews.
+collapse_simple_statement = "Never"

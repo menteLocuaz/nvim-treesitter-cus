@@ -1,20 +1,31 @@
 {
   "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
   "runtime": {
-    "version": "LuaJIT"
+    "version": "LuaJIT",
+    "pathStrict": true
   },
   "workspace": {
     "library": [
       "$VIMRUNTIME",
-      "${3rd}/busted/library"
+      "${3rd}/busted/library",
+      "${3rd}/luassert/library"
     ],
     "ignoreDir": [
+      ".git",
+      ".github",
       ".test-deps",
-      "tests"
+      "build",
+      "vendor"
     ],
     "checkThirdParty": "Disable"
   },
   "diagnostics": {
+    "globals": [
+      "vim"
+    ],
+    "unusedLocalExclude": [
+      "_*"
+    ],
     "groupFileStatus": {
       "strict": "Opened",
       "strong": "Opened"
@@ -22,7 +33,10 @@
     "groupSeverity": {
       "strong": "Warning",
       "strict": "Warning"
-    },
-    "unusedLocalExclude": [ "_*" ]
+    }
+  },
+  "type": {
+    "castNumberToInteger": true,
+    "weakUnionCheck": true
   }
 }

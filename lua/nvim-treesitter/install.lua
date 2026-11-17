@@ -34,7 +34,6 @@ local function mkpath(path)
   if not parent:match('^[./]$') and not uv.fs_stat(parent) then
     mkpath(parent)
   end
-
   return uv_mkdir(path, 493) -- tonumber('755', 8)
 end
 
@@ -70,7 +69,13 @@ local function join(max_jobs, tasks)
 
   max_jobs = math.min(max_jobs, #tasks)
 
-  local remaining = { select(max_jobs + 1, unpack(tasks)) }
+  local remaining = {}
+  -- We populate `remaining` while avoiding `unpack` to prevent stack overflows in cases with a large number of tasks.
+  -- We use the normal order so that `table.remove()` from the end maintains the original LIFO order.
+  for i = max_jobs + 1, #tasks do
+    table.insert(remaining, tasks[i])
+  end
+
   local to_go = #tasks
 
   a.await(1, function(finish)
@@ -99,10 +104,6 @@ local function system(cmd, opts)
   local cwd = opts and opts.cwd or uv.cwd()
   log.trace('running job: (cwd=%s) %s', cwd, table.concat(cmd, ' '))
 
-  ---vim.system throws an error when uv.spawn fails, in particular if cmd or cwd
-  ---does not exist. This kills the coroutine, so the async'ed call simply hangs.
-  ---Instead, we pass a wrapper that catches errors and propagates them as a proper
-  ---`SystemObj`.
   ---TODO(clason): remove when https://github.com/neovim/neovim/issues/38257 is resolved.
   ---@param _cmd string[]
   ---@param _opts vim.SystemOpts
@@ -175,11 +176,8 @@ local function needs_update(lang)
     return info.revision ~= get_installed_revision(lang)
   end
 
-  -- No revision. Check the queries link to the same place
-
   local queries = fs.joinpath(config.get_install_dir('queries'), lang)
   local queries_src = M.get_package_path('runtime', 'queries', lang)
-
   return uv.fs_realpath(queries) ~= uv.fs_realpath(queries_src)
 end
 
@@ -193,14 +191,8 @@ end
 ---@param compile_location string
 ---@return string? err
 local function do_generate(logger, repo, compile_location)
-  local from_json = true
-  if repo.generate_from_json == false then
-    from_json = false
-  end
-
-  logger:info(
-    string.format('Generating parser.c from %s...', from_json and 'grammar.json' or 'grammar.js')
-  )
+  local from_json = repo.generate_from_json ~= false
+  logger:info(string.format('Generating parser.c from %s...', from_json and 'grammar.json' or 'grammar.js'))
 
   local r = system({
     'tree-sitter',
@@ -209,6 +201,7 @@ local function do_generate(logger, repo, compile_location)
     tostring(vim.treesitter.language_version),
     from_json and 'src/grammar.json' or nil,
   }, { cwd = compile_location, env = { TREE_SITTER_JS_RUNTIME = 'native' } })
+  
   if r.code > 0 then
     return logger:error('Error during "tree-sitter generate": %s', r.stderr)
   end
@@ -230,69 +223,36 @@ local function do_download(logger, url, project_name, cache_dir, revision, outpu
 
   url = url:gsub('.git$', '')
   local target = string.format('%s/archive/%s.tar.gz', url, revision)
-
   local tarball_path = fs.joinpath(cache_dir, project_name .. '.tar.gz')
 
-  do -- Download tarball
-    logger:info('Downloading %s...', project_name)
-    local r = system({
-      'curl',
-      '--silent',
-      '--fail',
-      '--show-error',
-      '--retry',
-      '7',
-      '-L', -- follow redirects
-      target,
-      '--output',
-      tarball_path,
-    })
-    if r.code > 0 then
-      return logger:error('Error during download: %s', r.stderr)
-    end
-  end
+  logger:info('Downloading %s...', project_name)
+  local r = system({
+    'curl', '--silent', '--fail', '--show-error', '--retry', '7', '-L', target, '--output', tarball_path,
+  })
+  if r.code > 0 then return logger:error('Error during download: %s', r.stderr) end
 
-  do -- Create tmp dir
-    logger:debug('Creating temporary directory: %s', tmp)
-    local err = mkpath(tmp)
-    a.schedule()
-    if err then
-      return logger:error('Could not create %s-tmp: %s', project_name, err)
-    end
-  end
+  logger:debug('Creating temporary directory: %s', tmp)
+  local err = mkpath(tmp)
+  a.schedule()
+  if err then return logger:error('Could not create %s-tmp: %s', project_name, err) end
 
-  do -- Extract tarball
-    logger:debug('Extracting %s into %s...', tarball_path, project_name)
-    -- Windows tar can't handle drive letters
-    local r = system(
-      { 'tar', '-xzf', project_name .. '.tar.gz', '-C', project_name .. '-tmp' },
-      { cwd = cache_dir }
-    )
-    if r.code > 0 then
-      return logger:error('Error during tarball extraction: %s', r.stderr)
-    end
-  end
+  logger:debug('Extracting %s into %s...', tarball_path, project_name)
+  r = system({ 'tar', '-xzf', project_name .. '.tar.gz', '-C', project_name .. '-tmp' }, { cwd = cache_dir })
+  if r.code > 0 then return logger:error('Error during tarball extraction: %s', r.stderr) end
 
-  do -- Remove tarball
-    logger:debug('Removing %s...', tarball_path)
-    local err = uv_unlink(tarball_path)
-    a.schedule()
-    if err then
-      return logger:error('Could not remove tarball: %s', err)
-    end
-  end
+  logger:debug('Removing %s...', tarball_path)
+  err = uv_unlink(tarball_path)
+  a.schedule()
+  if err then return logger:error('Could not remove tarball: %s', err) end
 
-  do -- Move tmp dir to output dir
-    local dir_rev = revision:find('^v%d') and revision:sub(2) or revision
-    local repo_project_name = url:match('[^/]-$')
-    local extracted = fs.joinpath(tmp, repo_project_name .. '-' .. dir_rev)
-    logger:debug('Moving %s to %s/...', extracted, output_dir)
-    local err = uv_rename(extracted, output_dir)
-    a.schedule()
-    if err then
-      return logger:error('Could not rename temp: %s', err)
-    end
-  end
+  local dir_rev = revision:find('^v%d') and revision:sub(2) or revision
+  local repo_project_name = url:match('[^/]-$')
+  local extracted = fs.joinpath(tmp, repo_project_name .. '-' .. dir_rev)
+  
+  logger:debug('Moving %s to %s/...', extracted, output_dir)
+  err = uv_rename(extracted, output_dir)
+  a.schedule()
+  if err then return logger:error('Could not rename temp: %s', err) end
 
   rmpath(tmp)
   a.schedule()
@@ -303,14 +263,9 @@ end
 ---@param compile_location string
 ---@return string? err
 local function do_compile(logger, compile_location)
-  logger:info(string.format('Compiling parser'))
+  logger:info('Compiling parser')
 
-  local r = system({
-    'tree-sitter',
-    'build',
-    '-o',
-    'parser.so',
-  }, { cwd = compile_location })
+  local r = system({ 'tree-sitter', 'build', '-o', 'parser.so' }, { cwd = compile_location })
   if r.code > 0 then
     return logger:error('Error during "tree-sitter build": %s', r.stderr)
   end
@@ -322,11 +277,11 @@ end
 ---@param target_location string
 ---@return string? err
 local function do_install(logger, compile_location, target_location)
-  logger:info(string.format('Installing parser'))
+  logger:info('Installing parser')
 
   local tempfile = target_location .. tostring(uv.hrtime())
-  uv_rename(target_location, tempfile) -- parser may be in use: rename...
-  uv_unlink(tempfile) -- ...and mark for garbage collection
+  uv_rename(target_location, tempfile)
+  uv_unlink(tempfile)
 
   local err = uv_copyfile(compile_location, target_location)
   a.schedule()
@@ -344,9 +299,7 @@ local function do_link_queries(logger, query_src, query_dir)
   uv_unlink(query_dir)
   local err = uv_symlink(query_src, query_dir, { dir = true, junction = true })
   a.schedule()
-  if err then
-    return logger:error(err)
-  end
+  if err then return logger:error(err) end
 end
 
 ---@async
@@ -362,8 +315,67 @@ local function do_copy_queries(logger, query_src, query_dir)
     err = uv_copyfile(fs.joinpath(query_src, f), fs.joinpath(query_dir, f))
   end
   a.schedule()
-  if err then
-    return logger:error(err)
+  if err then return logger:error(err) end
+end
+
+---@async
+local function install_parser(logger, lang, repo, cache_dir, install_dir, generate)
+  local project_name = 'tree-sitter-' .. lang
+  local revision = repo.revision
+  local compile_location ---@type string
+
+  if repo.path then
+    compile_location = fs.normalize(repo.path)
+  else
+    local project_dir = fs.joinpath(cache_dir, project_name)
+    rmpath(project_dir)
+    revision = revision or repo.branch or 'main'
+
+    local err = do_download(logger, repo.url, project_name, cache_dir, revision, project_dir)
+    if err then return err end
+    compile_location = fs.joinpath(cache_dir, project_name)
+  end
+
+  if repo.location then
+    compile_location = fs.joinpath(compile_location, repo.location)
+  end
+
+  if repo.generate or generate then
+    local err = do_generate(logger, repo, compile_location)
+    if err then return err end
+  end
+
+  local err = do_compile(logger, compile_location)
+  if err then return err end
+
+  local parser_lib_name = fs.joinpath(compile_location, 'parser.so')
+  local install_location = fs.joinpath(install_dir, lang) .. '.so'
+  
+  err = do_install(logger, parser_lib_name, install_location)
+  if err then return err end
+
+  local revfile = fs.joinpath(config.get_install_dir('parser-info') or '', lang .. '.revision')
+  util.write_file(revfile, revision or '')
+end
+
+---@async
+local function install_queries_for_lang(logger, lang, repo, cache_dir, project_name)
+  local query_src = M.get_package_path('runtime', 'queries', lang)
+  local query_dir = fs.joinpath(config.get_install_dir('queries'), lang)
+  local task ---@type function?
+
+  if repo and repo.queries and repo.path then
+    query_src = fs.joinpath(fs.normalize(repo.path), repo.queries)
+    task = do_link_queries
+  elseif repo and repo.queries then
+    query_src = fs.joinpath(cache_dir, project_name, repo.queries)
+    task = do_copy_queries
+  elseif uv.fs_stat(query_src) then
+    task = do_link_queries
+  end
+
+  if task then
+    return task(logger, query_src, query_dir)
   end
 end
 
@@ -375,83 +387,17 @@ end
 ---@return string? err
 local function try_install_lang(lang, cache_dir, install_dir, generate)
   local logger = log.new('install/' .. lang)
-
   local repo = get_parser_install_info(lang)
   local project_name = 'tree-sitter-' .. lang
+  local err
+
   if repo then
-    local revision = repo.revision
-
-    local compile_location ---@type string
-    if repo.path then
-      compile_location = fs.normalize(repo.path)
-    else
-      local project_dir = fs.joinpath(cache_dir, project_name)
-      rmpath(project_dir)
-
-      revision = revision or repo.branch or 'main'
-
-      local err = do_download(logger, repo.url, project_name, cache_dir, revision, project_dir)
-      if err then
-        return err
-      end
-      compile_location = fs.joinpath(cache_dir, project_name)
-    end
-
-    if repo.location then
-      compile_location = fs.joinpath(compile_location, repo.location)
-    end
-
-    do -- generate parser from grammar
-      if repo.generate or generate then
-        local err = do_generate(logger, repo, compile_location)
-        if err then
-          return err
-        end
-      end
-    end
-
-    do -- compile parser
-      local err = do_compile(logger, compile_location)
-      if err then
-        return err
-      end
-    end
-
-    do -- install parser
-      local parser_lib_name = fs.joinpath(compile_location, 'parser.so')
-      local install_location = fs.joinpath(install_dir, lang) .. '.so'
-      local err = do_install(logger, parser_lib_name, install_location)
-      if err then
-        return err
-      end
-
-      local revfile = fs.joinpath(config.get_install_dir('parser-info') or '', lang .. '.revision')
-      util.write_file(revfile, revision or '')
-    end
+    err = install_parser(logger, lang, repo, cache_dir, install_dir, generate)
+    if err then return err end
   end
 
-  do -- install queries
-    local query_src = M.get_package_path('runtime', 'queries', lang)
-    local query_dir = fs.joinpath(config.get_install_dir('queries'), lang)
-    local task ---@type function
-
-    if repo and repo.queries and repo.path then -- link queries from local repo
-      query_src = fs.joinpath(fs.normalize(repo.path), repo.queries)
-      task = do_link_queries
-    elseif repo and repo.queries then -- copy queries from tarball
-      query_src = fs.joinpath(cache_dir, project_name, repo.queries)
-      task = do_copy_queries
-    elseif uv.fs_stat(query_src) then -- link queries from runtime
-      task = do_link_queries
-    end
-
-    if task then
-      local err = task(logger, query_src, query_dir)
-      if err then
-        return err
-      end
-    end
-  end
+  err = install_queries_for_lang(logger, lang, repo, cache_dir, project_name)
+  if err then return err end
 
   -- clean up
   if repo and not repo.path then
@@ -472,10 +418,9 @@ local installing = {} ---@type table<string,boolean?>
 ---@return boolean success
 local function install_lang(lang, cache_dir, install_dir, generate)
   if installing[lang] then
-    local success = vim.wait(INSTALL_TIMEOUT, function()
+    return vim.wait(INSTALL_TIMEOUT, function()
       return not installing[lang]
     end)
-    return success
   end
 
   installing[lang] = true
@@ -588,9 +533,7 @@ local function uninstall_lang(logger, lang, parser, queries)
     logger:debug('Unlinking ' .. parser)
     local perr = uv_unlink(parser)
     a.schedule()
-    if perr then
-      return logger:error(perr)
-    end
+    if perr then return logger:error(perr) end
   end
 
   local stat = uv.fs_lstat(queries)
@@ -603,9 +546,7 @@ local function uninstall_lang(logger, lang, parser, queries)
       qerr = rmpath(queries)
     end
     a.schedule()
-    if qerr then
-      return logger:error(qerr)
-    end
+    if qerr then return logger:error(qerr) end
   end
 
   logger:info('Language uninstalled')
@@ -633,9 +574,7 @@ M.uninstall = a.async(function(languages, options)
       local queries = fs.joinpath(query_dir, lang)
       tasks[#tasks + 1] = a.async(--[[@async]] function()
         local err = uninstall_lang(logger, lang, parser, queries)
-        if not err then
-          done = done + 1
-        end
+        if not err then done = done + 1 end
       end)
     end
   end

@@ -1,16 +1,26 @@
+
 name: Tests
 
 on:
   push:
     branches:
-      - "main"
+      - main
+
   pull_request:
     branches:
-      - "main"
+      - main
+
   workflow_dispatch:
 
+# Best Practice: Principle of Least Privilege.
+permissions:
+  contents: read
+
 concurrency:
-  group: ${{ github.workflow }}-build-${{ github.ref }}
+  # Scalability: Dynamically use head_ref for pull requests and ref for pushes/manual runs.
+  # This ensures that concurrent workflow runs are properly canceled
+  # based on the source branch without affecting other branches.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -18,4 +28,4 @@ jobs:
     name: Build
     uses: ./.github/workflows/test-core.yml
     with:
-      type: "build"
+      type: build

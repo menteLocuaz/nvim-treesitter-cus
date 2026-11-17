@@ -83,7 +83,7 @@ function M.get_available(tier)
 end
 
 local function expand_tiers(list)
-  -- Creamos un Set (Hash Map) para búsquedas O(1) de los tiers
+  -- We create a Set (HashMap) for O(1) lookups of the tiers.
   local tier_map = {}
   for i, tier in ipairs(M.tiers) do
     tier_map[tier] = i
@@ -124,8 +124,8 @@ function M.norm_languages(languages, skip)
 
   languages = expand_tiers(languages)
 
-  -- Convertimos la lista a un Set (Hash Map) para evitar iteraciones anidadas O(N^2)
-  local installed_set = {} ---@type table<string, boolean>
+  -- We convert the list into a Set (hash map) to avoid O(N^2) nested iterations.
+  local installed_set
   if skip.installed or skip.missing then
     for _, lang in ipairs(M.get_installed()) do
       installed_set[lang] = true
@@ -135,7 +135,7 @@ function M.norm_languages(languages, skip)
   local parsers = require('nvim-treesitter.parsers')
   local log = require('nvim-treesitter.log')
 
-  -- Consolidamos las 4 pasadas de filtrado en un Single-Pass O(N)
+  -- We consolidate the 4 filtering passes into a single-pass O(N) operation.
   languages = vim.tbl_filter(function(lang)
     if skip.installed and installed_set[lang] then
       return false
